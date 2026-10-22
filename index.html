@@ -61,7 +61,7 @@ input.in{width:100%;padding:10px;background:var(--bg1);border:0;border-radius:4p
 .burger,#bd{display:none}
 @media(max-width:700px){
 html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
-#rail,#side{position:fixed;top:0;bottom:0;z-index:20;transform:translateX(-110%);transition:transform .2s}
+#rail,#side{position:fixed;top:0;bottom:0;z-index:20;transform:translateX(calc(-100% - 80px));transition:transform .2s}
 #rail{left:0;width:72px}#side{left:72px;width:min(240px,calc(100vw - 72px))}
 #app.nav #rail,#app.nav #side{transform:none}
 #app.nav #bd{display:block;position:fixed;inset:0;background:#0008;z-index:10}
