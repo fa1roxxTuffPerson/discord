@@ -138,7 +138,7 @@ const h = (tag, props = {}, ...kids) => { const e = document.createElement(tag);
 const ucache = {};
 const colors = ["#5865f2","#eb459e","#f0b232","#23a55a","#00a8fc","#ed4245","#9b59b6"];
 const colorOf = s => colors[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length];
-const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url(${u.avatar})`; a.classList.add("img"); } else a.style.background = colorOf(name); return a; };
+const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url(${u.avatar})`; a.style.backgroundSize = "cover"; a.style.backgroundPosition = "center"; a.classList.add("img"); } else a.style.background = colorOf(name); return a; };
 const toast = t => { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = "none", 2200); };
 
 let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null;
@@ -194,7 +194,7 @@ function boot() {
     if (cur && !servers.find(s => s.id === cur.id)) { cur = null; selectServer(null); }
     else if (cur) cur = servers.find(s => s.id === cur.id);
     if (!cur && !home && servers.length) { selectServer(servers[0].id); return; }
-    renderRail(); renderMembers(); $("sname").textContent = cur ? cur.name : "Выберите сервер";
+    renderRail(); renderMembers(); redraw && redraw(); $("sname").textContent = cur ? cur.name : "Выберите сервер";
   }, e => toast("Ошибка: " + e.code));
 }
 function renderRail() {
@@ -250,6 +250,7 @@ function openChat(path, title, ph, admin, emptyText) {
   $("cname").textContent = title; $("inp").disabled = false; $("inp").placeholder = ph; $("inp").focus();
   let list = [];
   const draw = () => {
+    if (mpath !== path) return;
     const box = $("msgs"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || !box.children.length;
     box.replaceChildren();
     if (!list.length) box.append(h("div", { className: "empty", textContent: emptyText }));
@@ -363,9 +364,13 @@ async function showProfile(uid, fb) {
 }
 function square(file) {
   return new Promise((res, rej) => {
-    const i = new Image();
-    i.onload = () => { const m = Math.min(i.width, i.height), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(i, (i.width - m) / 2, (i.height - m) / 2, m, m, 0, 0, 128, 128); res(c.toDataURL("image/jpeg", .8)); };
-    i.onerror = rej; i.src = URL.createObjectURL(file);
+    const fr = new FileReader(); fr.onerror = rej;
+    fr.onload = () => {
+      const i = new Image();
+      i.onload = () => { const m = Math.min(i.width, i.height), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(i, (i.width - m) / 2, (i.height - m) / 2, m, m, 0, 0, 128, 128); res(c.toDataURL("image/jpeg", .8)); };
+      i.onerror = rej; i.src = fr.result;
+    };
+    fr.readAsDataURL(file);
   });
 }
 function editProfile() {
@@ -373,7 +378,7 @@ function editProfile() {
   const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" });
   const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
   const f = h("input", { type: "file", accept: "image/*", hidden: true });
-  f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); prev.style.backgroundImage = `url(${av})`; prev.classList.add("img"); } catch { toast("Не удалось обработать фото"); } };
+  f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { toast("Не удалось обработать фото, выберите JPG или PNG"); } };
   const save = mkBtn("Сохранить", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите ник");
     try {
@@ -387,16 +392,30 @@ function editProfile() {
   }, "btn full");
   modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, f, mkBtn("📷 Сменить аватарку", () => f.click()), h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, save);
 }
-function newRole() {
-  const nm = h("input", { className: "in", placeholder: "Название роли", maxLength: 20 }), col = h("input", { type: "color", value: "#5865f2", style: "width:100%;height:40px;margin-top:10px;border:0;background:none" });
-  const cb = (k, t) => { const i = h("input", { type: "checkbox" }); const l = h("label", { style: "display:block;margin-top:10px;font-size:14px;color:var(--txt);font-weight:400" }, i, " " + t); l.k = k; l.i = i; return l; };
+const PAL = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c", "#3498db", "#5865f2", "#9b59b6", "#e91e63", "#95a5a6"];
+function colorPick(init) {
+  let val = init; const wrap = h("div", { style: "display:flex;flex-wrap:wrap;gap:10px;margin-top:12px" });
+  const mark = () => [...wrap.children].forEach(b => b.style.outline = b.dataset.c === val ? "3px solid #fff" : "none");
+  PAL.forEach(c => { const b = h("button", { type: "button" }); b.dataset.c = c; b.style.cssText = `width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;background:${c}`; b.onclick = () => { val = c; mark(); }; wrap.append(b); });
+  mark(); return { el: wrap, get: () => val };
+}
+function newRole(role) {
+  const ref = doc(db, "servers", cur.id);
+  const nm = h("input", { className: "in", placeholder: "Название роли", maxLength: 20, value: role?.name || "" }), cp = colorPick(role?.color || "#5865f2");
+  const cb = (k, t) => { const i = h("input", { type: "checkbox", checked: !!role?.perms?.includes(k) }); const l = h("label", { style: "display:block;margin-top:12px;font-size:14px;color:var(--txt);font-weight:400" }, i, " " + t); l.k = k; l.i = i; return l; };
   const c1 = cb("mod", "Банить, запрещать писать, таймаут"), c2 = cb("roles", "Создавать и выдавать роли");
-  const ok = mkBtn("Создать", async () => {
+  const ok = mkBtn(role ? "Сохранить" : "Создать", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите название");
-    try { await updateDoc(doc(db, "servers", cur.id), { roles: arrayUnion({ id: Date.now().toString(36), name, color: col.value, perms: [c1, c2].filter(c => c.i.checked).map(c => c.k) }) }); closeM(); toast("Роль создана"); }
+    const r = { id: role?.id || Date.now().toString(36), name, color: cp.get(), perms: [c1, c2].filter(c => c.i.checked).map(c => c.k) };
+    try { await updateDoc(ref, { roles: role ? (cur.roles || []).map(x => x.id === role.id ? r : x) : arrayUnion(r) }); closeM(); toast(role ? "Роль обновлена" : "Роль создана"); }
     catch (e) { toast("Ошибка: " + e.code); }
   }, "btn full");
-  modal(h("h1", { textContent: "Новая роль", style: "font-size:22px" }), nm, col, c1, c2, ok);
+  const del = role && mkBtn("Удалить роль", async () => {
+    if (!confirm("Удалить роль «" + role.name + "»?")) return;
+    const mr = { ...(cur.mr || {}) }; for (const k in mr) if (mr[k] === role.id) delete mr[k];
+    await updateDoc(ref, { roles: (cur.roles || []).filter(x => x.id !== role.id), mr }).catch(() => {}); closeM();
+  }, "btn red");
+  modal(h("h1", { textContent: role ? "Изменить роль" : "Новая роль", style: "font-size:22px" }), nm, h("label", { textContent: "ЦВЕТ" }), cp.el, c1, c2, ok, ...(del ? [del] : []));
 }
 function serverPanel() {
   if (!cur) return; const me = user.uid, ref = doc(db, "servers", cur.id), n = [];
@@ -405,9 +424,9 @@ function serverPanel() {
   n.push(h("div", { className: "sec" }, h("span", { textContent: "УЧАСТНИКИ" })));
   Object.entries(cur.names || {}).forEach(([uid, nm]) => n.push(mkBtn(nameOf(uid, nm) + (uid === cur.owner ? " 👑" : ""), () => showProfile(uid, nm))));
   if (perm(me, "roles")) {
-    n.push(h("div", { className: "sec" }, h("span", { textContent: "РОЛИ (нажмите, чтобы удалить)" })));
-    (cur.roles || []).forEach(r => { const c = h("span", { className: "rl", textContent: r.name + (r.perms.length ? " ⚙" : ""), style: `color:${r.color};border-color:${r.color}` }); c.onclick = async () => { if (!confirm("Удалить роль «" + r.name + "»?")) return; const mr = { ...(cur.mr || {}) }; for (const k in mr) if (mr[k] === r.id) delete mr[k]; await updateDoc(ref, { roles: (cur.roles || []).filter(x => x.id !== r.id), mr }).catch(() => {}); closeM(); }; n.push(c); });
-    n.push(mkBtn("➕ Создать роль", newRole));
+    n.push(h("div", { className: "sec" }, h("span", { textContent: "РОЛИ (нажмите, чтобы изменить)" })));
+    (cur.roles || []).forEach(r => { const c = h("span", { className: "rl", textContent: r.name + (r.perms.length ? " ⚙" : ""), style: `color:${r.color};border-color:${r.color}` }); c.onclick = () => newRole(r); n.push(c); });
+    n.push(mkBtn("➕ Создать роль", () => newRole()));
   }
   const bans = Object.entries(cur.bn || {});
   if (bans.length && perm(me, "mod")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "БАН-ЛИСТ" }))); bans.forEach(([uid, nm]) => n.push(mkBtn("Разбанить " + nm, () => updateDoc(ref, { ["bn." + uid]: deleteField() }).then(() => { toast("Разбанен"); closeM(); })))); }
