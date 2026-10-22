@@ -364,11 +364,26 @@ async function showProfile(uid, fb) {
 }
 function square(file) {
   return new Promise((res, rej) => {
-    const fr = new FileReader(); fr.onerror = rej;
+    if (!file || !file.type.startsWith("image/")) return rej(new Error("not-image"));
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error("read"));
     fr.onload = () => {
       const i = new Image();
-      i.onload = () => { const m = Math.min(i.width, i.height), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(i, (i.width - m) / 2, (i.height - m) / 2, m, m, 0, 0, 128, 128); res(c.toDataURL("image/jpeg", .8)); };
-      i.onerror = rej; i.src = fr.result;
+      i.onload = () => {
+        try {
+          const m = Math.min(i.width, i.height);
+          if (!m) return rej(new Error("empty"));
+          const c = document.createElement("canvas");
+          c.width = c.height = 128;
+          c.getContext("2d").drawImage(i, (i.width - m) / 2, (i.height - m) / 2, m, m, 0, 0, 128, 128);
+          let q = 0.85, d = c.toDataURL("image/jpeg", q);
+          while (d.length > 120000 && q > 0.4) { q -= 0.1; d = c.toDataURL("image/jpeg", q); }
+          if (d.length > 200000) return rej(new Error("too-big"));
+          res(d);
+        } catch (e) { rej(e); }
+      };
+      i.onerror = () => rej(new Error("decode"));
+      i.src = fr.result;
     };
     fr.readAsDataURL(file);
   });
@@ -377,27 +392,71 @@ function editProfile() {
   const u = ucache[user.uid] || {}; let av = u.avatar || null;
   const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" });
   const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
-  const f = h("input", { type: "file", accept: "image/*", hidden: true });
-  f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { toast("Не удалось обработать фото, выберите JPG или PNG"); } };
+  const f = h("input", { type: "file", accept: "image/jpeg,image/png,image/webp,image/gif", style: "position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0)" });
+  f.onchange = async () => {
+    const file = f.files[0];
+    f.value = "";
+    if (!file) return;
+    try {
+      toast("Обработка фото…");
+      av = await square(file);
+      prev.style.backgroundImage = `url(${av})`;
+      prev.style.backgroundSize = "cover";
+      prev.style.backgroundPosition = "center";
+      prev.classList.add("img");
+      prev.textContent = "";
+      toast("Фото выбрано — нажмите «Сохранить»");
+    } catch (err) {
+      const msg = { "not-image": "Выберите изображение (JPG, PNG, WebP)", "too-big": "Фото слишком большое", "decode": "Не удалось прочитать изображение", "read": "Ошибка чтения файла" }[err?.message] || "Не удалось обработать фото";
+      toast(msg);
+    }
+  };
+  // label + for — надёжно открывает выбор файла на телефоне
+  const fid = "avfile_" + Date.now();
+  f.id = fid;
+  const pickBtn = h("label", { htmlFor: fid, className: "btn g", textContent: "📷 Сменить аватарку", style: "display:inline-block;margin:6px 6px 0 0;cursor:pointer;text-align:center" });
   const save = mkBtn("Сохранить", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите ник");
     try {
       await updateProfile(auth.currentUser, { displayName: name }); user = auth.currentUser;
       const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), avatar: av || "" };
-      await setDoc(doc(db, "users", user.uid), data, { merge: true }); ucache[user.uid] = { ...ucache[user.uid], ...data };
+      await setDoc(doc(db, "users", user.uid), data, { merge: true });
+      ucache[user.uid] = { ...ucache[user.uid], ...data };
       servers.forEach(x => updateDoc(doc(db, "servers", x.id), { ["names." + user.uid]: name }).catch(() => {}));
       friends.forEach(x => updateDoc(doc(db, "friends", x.id), { ["names." + user.uid]: name }).catch(() => {}));
       paintMe(); renderMembers(); redraw && redraw(); closeM(); toast("Профиль обновлён");
     } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
   }, "btn full");
-  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, f, mkBtn("📷 Сменить аватарку", () => f.click()), h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, save);
+  const rmAv = mkBtn("Убрать аватарку", () => {
+    av = "";
+    prev.style.backgroundImage = "";
+    prev.classList.remove("img");
+    prev.style.background = colorOf(myName());
+    prev.textContent = (myName() || "?")[0].toUpperCase();
+    toast("Аватарка будет убрана после сохранения");
+  }, "btn g");
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, f, pickBtn, rmAv, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, save);
 }
 const PAL = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c", "#3498db", "#5865f2", "#9b59b6", "#e91e63", "#95a5a6"];
 function colorPick(init) {
-  let val = init; const wrap = h("div", { style: "display:flex;flex-wrap:wrap;gap:10px;margin-top:12px" });
-  const mark = () => [...wrap.children].forEach(b => b.style.outline = b.dataset.c === val ? "3px solid #fff" : "none");
-  PAL.forEach(c => { const b = h("button", { type: "button" }); b.dataset.c = c; b.style.cssText = `width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;background:${c}`; b.onclick = () => { val = c; mark(); }; wrap.append(b); });
-  mark(); return { el: wrap, get: () => val };
+  let val = (init || "#5865f2").toLowerCase();
+  const wrap = h("div", { style: "display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center" });
+  const mark = () => {
+    [...wrap.querySelectorAll("button[data-c]")].forEach(b => b.style.outline = b.dataset.c === val ? "3px solid #fff" : "none");
+    if (picker) picker.value = val;
+  };
+  PAL.forEach(c => {
+    const b = h("button", { type: "button" });
+    b.dataset.c = c;
+    b.style.cssText = `width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;background:${c}`;
+    b.onclick = () => { val = c; mark(); };
+    wrap.append(b);
+  });
+  const picker = h("input", { type: "color", value: val, title: "Свой цвет", style: "width:42px;height:38px;border:0;padding:0;background:none;cursor:pointer;border-radius:8px" });
+  picker.oninput = () => { val = picker.value.toLowerCase(); mark(); };
+  wrap.append(picker);
+  mark();
+  return { el: wrap, get: () => val };
 }
 function newRole(role) {
   const ref = doc(db, "servers", cur.id);
