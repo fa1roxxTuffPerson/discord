@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discord Clone</title>
+<style>
+:root{--bg1:#1e1f22;--bg2:#2b2d31;--bg3:#313338;--hover:#35373c;--txt:#dbdee1;--mut:#949ba4;--acc:#5865f2;--acc2:#4752c4;--red:#da373c;--grn:#23a55a}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--bg3);color:var(--txt);font:15px/1.4 "gg sans","Segoe UI",system-ui,sans-serif}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid #00a8fc;outline-offset:2px}
+#auth{height:100%;display:grid;place-items:center;background:radial-gradient(circle at 20% 20%,#5865f2 0,#2b2d31 55%)}
+.card{background:var(--bg3);padding:32px;border-radius:8px;width:min(92vw,420px);box-shadow:0 8px 30px #0008}
+.card h1{font-size:24px;text-align:center;margin-bottom:6px}.card p{color:var(--mut);text-align:center;margin-bottom:20px}
+.card label{display:block;font-size:12px;font-weight:700;color:var(--mut);margin:12px 0 6px}
+input.in{width:100%;padding:10px;background:var(--bg1);border:0;border-radius:4px}
+.btn{background:var(--acc);border:0;border-radius:4px;padding:10px 16px;cursor:pointer;font-weight:600;color:#fff}
+.btn:hover{background:var(--acc2)}.btn.full{width:100%;margin-top:20px}.btn.red{background:var(--red)}
+.link{background:none;border:0;color:#00a8fc;cursor:pointer;padding:0}
+.err{color:#fa777c;font-size:13px;margin-top:10px;min-height:18px}
+#app{display:none;height:100%;grid-template-columns:72px 240px 1fr auto}
+#rail{background:var(--bg1);padding:12px 0;display:flex;flex-direction:column;align-items:center;gap:8px;overflow:auto}
+.sv{width:48px;height:48px;border-radius:50%;background:var(--bg3);border:0;cursor:pointer;font-weight:700;color:var(--txt);transition:border-radius .15s,background .15s;position:relative;flex:none}
+.sv:hover,.sv.on{border-radius:16px;background:var(--acc);color:#fff}
+.sv.on::before{content:"";position:absolute;left:-12px;top:12px;width:4px;height:24px;background:#fff;border-radius:0 4px 4px 0}
+.sv.add{color:var(--grn)}.sv.add:hover{background:var(--grn);color:#fff}
+.sep{width:32px;height:2px;background:var(--bg3);border-radius:1px}
+#side{background:var(--bg2);display:flex;flex-direction:column;min-width:0}
+.hd{height:48px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;font-weight:700;border-bottom:1px solid #0003;flex:none}
+#chs{flex:1;overflow:auto;padding:8px}
+.ch{display:flex;width:100%;gap:6px;padding:6px 8px;border:0;background:none;border-radius:4px;color:var(--mut);cursor:pointer;text-align:left;font-weight:500}
+.ch:hover{background:var(--hover);color:var(--txt)}.ch.on{background:#404249;color:#fff}
+.sec{display:flex;justify-content:space-between;color:var(--mut);font-size:12px;font-weight:700;padding:12px 8px 4px}
+.sec button{background:none;border:0;color:var(--mut);cursor:pointer;font-size:18px;line-height:1}.sec button:hover{color:#fff}
+#me{background:#232428;padding:8px;display:flex;align-items:center;gap:8px;flex:none}
+.av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;flex:none}
+#me .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.ib{background:none;border:0;color:var(--mut);cursor:pointer;padding:6px;border-radius:4px}.ib:hover{background:var(--hover);color:#fff}
+#main{display:flex;flex-direction:column;min-width:0;min-height:0}
+#msgs{flex:1;overflow:auto;padding:16px 0}
+.m{display:flex;gap:16px;padding:2px 16px;position:relative}.m:hover{background:#2e3035}
+.m.first{margin-top:16px}.m .gap{width:40px;flex:none;font-size:10px;color:transparent;text-align:center;padding-top:5px}.m:hover .gap{color:var(--mut)}
+.m .av{width:40px;height:40px}.m .b{min-width:0}.m .t{white-space:pre-wrap;overflow-wrap:anywhere}
+.m .who{font-weight:600;margin-right:8px}.m .ts{font-size:12px;color:var(--mut)}
+.m .del{position:absolute;right:16px;top:-10px;display:none;background:var(--bg2);border:1px solid #0004}
+.m:hover .del{display:block}
+.empty{color:var(--mut);text-align:center;margin-top:40px;padding:0 20px}
+#form{margin:0 16px 24px;flex:none;display:flex;align-items:center;background:#383a40;border-radius:8px;padding:0 6px}
+#inp{flex:1;min-width:0;background:none;border:0;padding:12px 8px}#inp:focus-visible{outline:0}#form .ib{font-size:18px}
+.pic{display:block;max-width:min(320px,100%);max-height:300px;border-radius:8px;margin-top:4px;cursor:zoom-in}
+#emp{position:fixed;bottom:84px;right:16px;background:var(--bg2);border-radius:8px;padding:8px;display:none;grid-template-columns:repeat(8,1fr);gap:2px;box-shadow:0 4px 20px #0008;z-index:8;max-width:calc(100vw - 32px)}#emp.show{display:grid}#emp button{background:none;border:0;font-size:22px;cursor:pointer;border-radius:4px;padding:2px}#emp button:hover{background:var(--hover)}
+#mem{width:240px;background:var(--bg2);padding:16px 8px;overflow:auto}
+#mem h4{color:var(--mut);font-size:12px;padding:0 8px 8px}
+.mb{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:4px}.mb:hover{background:var(--hover)}
+.mb .av{width:32px;height:32px;font-size:13px}
+.dlg{position:fixed;inset:0;background:#000a;display:none;place-items:center;z-index:9}
+.dlg.show{display:grid}
+.dlg .card{box-shadow:none}.row{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+.row .btn.g{background:none}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111214;padding:10px 18px;border-radius:6px;display:none;z-index:99}
+.av.img{background-size:cover;background-position:center;color:transparent}.m .av,.mb .av{cursor:pointer}
+.rl{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;margin:3px 4px 0 0;border:1px solid;cursor:pointer}
+audio{display:block;margin-top:4px;max-width:100%;height:40px}#mic.rec{color:var(--red);animation:pl 1s infinite}@keyframes pl{50%{opacity:.4}}
+select.in{margin-top:8px}.who{cursor:pointer}
+@media(max-width:900px){#mem{display:none}#app{grid-template-columns:72px 240px 1fr}}
+.burger,#bd{display:none}
+@media(max-width:700px){
+html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
+#rail,#side{position:fixed;top:0;bottom:0;z-index:20;transform:translateX(calc(-100% - 80px));transition:transform .2s}
+#rail{left:0;width:72px}#side{left:72px;width:min(240px,calc(100vw - 72px))}
+#app.nav #rail,#app.nav #side{transform:none}
+#app.nav #bd{display:block;position:fixed;inset:0;background:#0008;z-index:10}
+.burger{display:inline-block;margin-right:8px;font-size:20px}
+#inp,input.in{font-size:16px}.m .del{display:block;top:0;opacity:.7}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="auth">
+  <div class="card">
+    <h1 id="at">С возвращением!</h1><p id="as">Мы рады видеть вас снова</p>
+    <div id="nmw" hidden><label for="aname">ИМЯ ПОЛЬЗОВАТЕЛЯ</label><input class="in" id="aname" maxlength="24" autocomplete="nickname"></div>
+    <label for="aem">ЭЛЕКТРОННАЯ ПОЧТА</label><input class="in" id="aem" type="email" autocomplete="email">
+    <label for="apw">ПАРОЛЬ</label><input class="in" id="apw" type="password" autocomplete="current-password">
+    <div class="err" id="aerr" role="alert"></div>
+    <button class="btn full" id="abtn">Вход</button>
+    <button class="btn full" id="gbtn" style="background:#fff;color:#1f1f1f;margin-top:10px">Войти через Google</button>
+    <p style="margin:16px 0 0;font-size:14px"><span id="aq">Нужна учётная запись?</span> <button class="link" id="asw">Зарегистрироваться</button></p>
+  </div>
+</div>
+
+<div id="app">
+  <nav id="rail" aria-label="Серверы"></nav>
+  <aside id="side">
+    <div class="hd"><span id="sname">Выберите сервер</span><button class="ib" id="menu" title="Меню сервера" hidden>⋮</button></div>
+    <div id="chs"></div>
+    <div id="me"><div class="av" id="meav"></div><span class="nm" id="menm"></span><button class="ib" id="cfg" title="Мой профиль">⚙</button><button class="ib" id="out" title="Выйти">⎋</button></div>
+  </aside>
+  <main id="main">
+    <div class="hd" style="justify-content:flex-start"><button class="ib burger" id="burger" aria-label="Меню">☰</button><span id="cname"># —</span></div>
+    <div id="msgs"><div class="empty">Создайте сервер или присоединитесь к существующему по коду приглашения.</div></div>
+    <div id="form"><button class="ib" id="att" title="Отправить фото">📎</button><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="mic" title="Голосовое сообщение">🎤</button><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*" hidden></div>
+    <div id="emp"></div>
+  </main>
+  <aside id="mem"></aside>
+  <div id="bd"></div>
+</div>
+
+<div class="dlg" id="dlg"><div class="card">
+  <h1 id="dt"></h1><p id="dp"></p>
+  <input class="in" id="di" maxlength="40"><div class="err" id="derr"></div>
+  <div class="row"><button class="btn g" id="dno">Отмена</button><button class="btn" id="dyes">Готово</button></div>
+</div></div>
+<div class="dlg" id="lbw"><img id="lb" alt="" style="max-width:95vw;max-height:90vh;border-radius:8px"></div>
+<div class="dlg" id="pnl"><div class="card" id="pc" style="max-height:88vh;overflow:auto"></div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app = initializeApp({
+  apiKey: "AIzaSyBSyynf_g3goTl2bS05slOiylDnGru0m54",
+  authDomain: "discord-1641a.firebaseapp.com",
+  projectId: "discord-1641a",
+  storageBucket: "discord-1641a.firebasestorage.app",
+  messagingSenderId: "451249698925",
+  appId: "1:451249698925:web:e6311a6dbbd59957f9a764"
+});
+const auth = getAuth(app), db = getFirestore(app);
+setPersistence(auth, browserLocalPersistence).catch(() => {}); // вход сохраняется после закрытия браузера
+const $ = id => document.getElementById(id);
+queueMicrotask(() => { $("burger").onclick = () => $("app").classList.toggle("nav"); $("bd").onclick = () => $("app").classList.remove("nav"); });
+const h = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach(k => e.append(k)); return e; };
+const ucache = {};
+const colors = ["#5865f2","#eb459e","#f0b232","#23a55a","#00a8fc","#ed4245","#9b59b6"];
+const colorOf = s => colors[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length];
+const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url(${u.avatar})`; a.classList.add("img"); } else a.style.background = colorOf(name); return a; };
+const toast = t => { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = "none", 2200); };
+
+let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null;
+let unsub = { sv: null, ch: null, msg: null };
+
+/* ---------- AUTH ---------- */
+let reg = false;
+const authErrs = { "auth/invalid-credential": "Неверная почта или пароль", "auth/invalid-email": "Некорректная почта", "auth/email-already-in-use": "Эта почта уже зарегистрирована", "auth/weak-password": "Пароль минимум 6 символов", "auth/too-many-requests": "Слишком много попыток, подождите", "auth/network-request-failed": "Нет соединения с сетью", "auth/operation-not-allowed": "Этот способ входа не включён в Firebase Authentication", "auth/unauthorized-domain": "Добавьте домен сайта в Authentication → Settings → Authorized domains", "auth/popup-blocked": "Браузер заблокировал окно входа, разрешите всплывающие окна" };
+function setMode(r) {
+  reg = r; $("nmw").hidden = !r; $("aerr").textContent = "";
+  $("at").textContent = r ? "Создать учётную запись" : "С возвращением!";
+  $("as").textContent = r ? "Присоединяйтесь к нам" : "Мы рады видеть вас снова";
+  $("abtn").textContent = r ? "Продолжить" : "Вход";
+  $("aq").textContent = r ? "Уже есть аккаунт?" : "Нужна учётная запись?";
+  $("asw").textContent = r ? "Войти" : "Зарегистрироваться";
+}
+$("asw").onclick = () => setMode(!reg);
+async function submitAuth() {
+  const em = $("aem").value.trim(), pw = $("apw").value, nm = $("aname").value.trim();
+  if (!em || !pw || (reg && !nm)) { $("aerr").textContent = "Заполните все поля"; return; }
+  $("abtn").disabled = true;
+  try {
+    if (reg) { const c = await createUserWithEmailAndPassword(auth, em, pw); await updateProfile(c.user, { displayName: nm }); user = auth.currentUser; boot(); }
+    else await signInWithEmailAndPassword(auth, em, pw);
+  } catch (e) { $("aerr").textContent = authErrs[e.code] || e.message; }
+  $("abtn").disabled = false;
+}
+$("abtn").onclick = submitAuth;
+["aem", "apw", "aname"].forEach(i => $(i).addEventListener("keydown", e => e.key === "Enter" && submitAuth()));
+$("gbtn").onclick = async () => {
+  $("aerr").textContent = "";
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch (e) { if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") $("aerr").textContent = authErrs[e.code] || e.message; }
+};
+$("out").onclick = () => signOut(auth);
+onAuthStateChanged(auth, u => {
+  user = u;
+  if (u) { $("auth").style.display = "none"; $("app").style.display = "grid"; boot(); }
+  else { Object.values(unsub).forEach(f => f && f()); unsub = {}; servers = []; friends = []; home = false; mpath = null; cur = curCh = null; $("auth").style.display = "grid"; $("app").style.display = "none"; }
+});
+const myName = () => user.displayName || user.email.split("@")[0];
+
+/* ---------- SERVERS ---------- */
+function boot() {
+  if (!user) return;
+  delete ucache[user.uid]; paintMe();
+  setDoc(doc(db, "users", user.uid), { name: myName(), nameLower: myName().toLowerCase() }, { merge: true }).catch(() => {});
+  unsub.fr && unsub.fr();
+  unsub.fr = onSnapshot(query(collection(db, "friends"), where("users", "array-contains", user.uid)), snap => { friends = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderRail(); if (home) renderHome(); }, e => toast("Друзья: " + e.code));
+  unsub.sv && unsub.sv();
+  unsub.sv = onSnapshot(query(collection(db, "servers"), where("members", "array-contains", user.uid)), snap => {
+    servers = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    if (cur && !servers.find(s => s.id === cur.id)) { cur = null; selectServer(null); }
+    else if (cur) cur = servers.find(s => s.id === cur.id);
+    if (!cur && !home && servers.length) { selectServer(servers[0].id); return; }
+    renderRail(); renderMembers(); $("sname").textContent = cur ? cur.name : "Выберите сервер";
+  }, e => toast("Ошибка: " + e.code));
+}
+function renderRail() {
+  const r = $("rail"); r.replaceChildren();
+  const inc = friends.filter(f => f.status === "pending" && f.from !== user.uid).length;
+  const hb = h("button", { className: "sv" + (home ? " on" : ""), textContent: inc ? "💬" + inc : "💬", title: "Друзья и личные сообщения" }); hb.onclick = goHome;
+  r.append(hb, h("div", { className: "sep" }));
+  servers.forEach(s => { const b = h("button", { className: "sv" + (!home && cur?.id === s.id ? " on" : ""), textContent: s.name.slice(0, 2).toUpperCase(), title: s.name }); b.onclick = () => selectServer(s.id); r.append(b); });
+  r.append(h("div", { className: "sep" }));
+  const add = h("button", { className: "sv add", textContent: "+", title: "Создать сервер" }); add.onclick = createServer;
+  const join = h("button", { className: "sv add", textContent: "→", title: "Присоединиться по коду" }); join.onclick = joinServer;
+  r.append(add, join);
+}
+function selectServer(id) {
+  unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); curCh = null; chans = []; home = false; mpath = null;
+  cur = servers.find(s => s.id === id) || null;
+  renderRail(); renderMembers(); renderChans(); $("menu").hidden = !cur;
+  $("sname").textContent = cur ? cur.name : "Выберите сервер";
+  $("cname").textContent = "# —"; $("inp").disabled = true;
+  $("msgs").replaceChildren(h("div", { className: "empty", textContent: cur ? "Выберите канал" : "Создайте сервер или присоединитесь по коду приглашения." }));
+  if (!cur) return;
+  unsub.ch = onSnapshot(query(collection(db, "servers", cur.id, "channels"), orderBy("createdAt")), snap => {
+    chans = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!curCh || !chans.find(c => c.id === curCh)) { if (chans.length) selectChannel(chans[0].id); }
+    renderChans();
+  });
+}
+function renderChans() {
+  const c = $("chs"); c.replaceChildren();
+  if (!cur) return;
+  const add = h("button", { textContent: "+", title: "Создать канал" }); add.onclick = createChannel;
+  c.append(h("div", { className: "sec" }, h("span", { textContent: "ТЕКСТОВЫЕ КАНАЛЫ" }), add));
+  chans.forEach(ch => { const b = h("button", { className: "ch" + (curCh === ch.id ? " on" : ""), textContent: "# " + ch.name }); b.onclick = () => selectChannel(ch.id); c.append(b); });
+}
+function renderMembers() {
+  const m = $("mem"); m.replaceChildren();
+  if (!cur) return;
+  const names = cur.names || {};
+  m.append(h("h4", { textContent: "УЧАСТНИКИ — " + Object.keys(names).length }));
+  Object.entries(names).forEach(([uid, n]) => { const nn = nameOf(uid, n); const r = h("div", { className: "mb", style: "cursor:pointer" }, avatar(nn, uid), h("span", { textContent: nn + (uid === cur.owner ? " 👑" : ""), style: "color:" + nameColor(uid, nn) })); r.onclick = () => showProfile(uid, nn); m.append(r); });
+}
+
+/* ---------- MESSAGES ---------- */
+let canDelAll = false, redraw = null, rdT;
+const hm = ts => ts ? ts.toDate().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }) : "";
+const fmt = ts => { if (!ts) return "отправка…"; const d = ts.toDate(); return d.toDateString() === new Date().toDateString() ? "Сегодня в " + hm(ts) : d.toLocaleDateString("ru") + " " + hm(ts); };
+function selectChannel(id) {
+  curCh = id; const ch = chans.find(c => c.id === id); renderChans(); $("app").classList.remove("nav");
+  openChat(["servers", cur.id, "channels", id, "messages"], "# " + (ch?.name || ""), "Написать в #" + (ch?.name || ""), cur.owner === user.uid, "Это начало канала. Напишите первое сообщение!");
+}
+function openChat(path, title, ph, admin, emptyText) {
+  unsub.msg && unsub.msg(); mpath = path; canDelAll = admin;
+  $("cname").textContent = title; $("inp").disabled = false; $("inp").placeholder = ph; $("inp").focus();
+  let list = [];
+  const draw = () => {
+    const box = $("msgs"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || !box.children.length;
+    box.replaceChildren();
+    if (!list.length) box.append(h("div", { className: "empty", textContent: emptyText }));
+    let prev = null;
+    list.forEach(m => {
+      const nm = nameOf(m.uid, m.name), srv = path[0] === "servers", secs = m.createdAt?.seconds || Date.now() / 1000;
+      const first = !prev || prev.uid !== m.uid || secs - (prev.createdAt?.seconds || secs) > 420;
+      const body = h("div", { className: "b" });
+      if (first) { const w = h("span", { className: "who", textContent: nm, style: "color:" + (srv ? nameColor(m.uid, nm) : colorOf(nm)) }); w.onclick = () => showProfile(m.uid, nm); body.append(h("div", {}, w, h("span", { className: "ts", textContent: fmt(m.createdAt) }))); }
+      if (m.text) body.append(h("div", { className: "t", textContent: m.text }));
+      if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
+      if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
+      let av; if (first) { av = avatar(nm, m.uid); av.onclick = () => showProfile(m.uid, nm); } else av = h("div", { className: "gap", textContent: hm(m.createdAt) });
+      const row = h("div", { className: "m" + (first ? " first" : "") }, av, body);
+      if (m.uid === user.uid || canDelAll) { const x = h("button", { className: "ib del", textContent: "🗑", title: "Удалить" }); x.onclick = () => deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); row.append(x); }
+      box.append(row); prev = m;
+    });
+    if (atEnd) box.scrollTop = box.scrollHeight;
+  };
+  redraw = draw;
+  unsub.msg = onSnapshot(query(collection(db, ...path), orderBy("createdAt", "desc"), limit(100)), snap => {
+    if (mpath !== path) return;
+    list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); draw();
+  }, e => toast("Ошибка чтения: " + e.code));
+}
+async function send(data) {
+  if (!mpath) return false;
+  if (mpath[0] === "servers" && cur?.to?.[user.uid] > Date.now()) { const t = cur.to[user.uid]; toast(t > Date.now() + 2e11 ? "Вам запретили писать на этом сервере" : "Таймаут до " + new Date(t).toLocaleTimeString("ru")); return false; }
+  try { await addDoc(collection(db, ...mpath), { ...data, uid: user.uid, name: myName(), createdAt: serverTimestamp() }); return true; }
+  catch (er) { toast("Не отправлено: " + er.code); return false; }
+}
+$("inp").addEventListener("keydown", async e => {
+  if (e.key !== "Enter" || e.shiftKey) return;
+  const text = $("inp").value.trim(); if (!text) return;
+  $("inp").value = ""; if (!(await send({ text }))) $("inp").value = text;
+});
+function shrink(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 900 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = img.width * k | 0; c.height = img.height * k | 0; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      let q = .75, d = c.toDataURL("image/jpeg", q);
+      while (d.length > 700000 && q > .3) { q -= .1; d = c.toDataURL("image/jpeg", q); }
+      d.length > 900000 ? rej() : res(d);
+    };
+    img.onerror = rej; img.src = URL.createObjectURL(file);
+  });
+}
+$("att").onclick = () => mpath ? $("file").click() : toast("Сначала выберите канал или друга");
+$("file").onchange = async () => {
+  const f = $("file").files[0]; $("file").value = ""; if (!f || !mpath) return;
+  try { toast("Отправка фото…"); await send({ text: "", img: await shrink(f) }); } catch { toast("Не удалось обработать фото"); }
+};
+$("lbw").onclick = () => $("lbw").classList.remove("show");
+"😀😂😍🥰😎🤔😭😡👍👎🙏🔥❤️🎉💀👀😴🤝✨💯🎮🍕☕🌙".match(/\p{Extended_Pictographic}\uFE0F?/gu).forEach(em => { const b = h("button", { textContent: em }); b.onclick = () => { $("inp").value += em; $("inp").focus(); }; $("emp").append(b); });
+$("emo").onclick = () => $("emp").classList.toggle("show");
+
+/* ---------- PROFILES / ROLES / MODERATION ---------- */
+function getUser(uid) {
+  if (ucache[uid]) return ucache[uid];
+  ucache[uid] = {};
+  getDoc(doc(db, "users", uid)).then(d => { ucache[uid] = d.exists() ? d.data() : {}; clearTimeout(rdT); rdT = setTimeout(() => { redraw && redraw(); renderMembers(); if (user && uid === user.uid) paintMe(); }, 150); }).catch(() => {});
+  return ucache[uid];
+}
+const nameOf = (uid, fb) => ucache[uid]?.name || fb;
+const roleOf = uid => cur && (cur.roles || []).find(r => r.id === (cur.mr || {})[uid]);
+const nameColor = (uid, fb) => roleOf(uid)?.color || colorOf(fb);
+const perm = (uid, p) => cur && (cur.owner === uid || !!roleOf(uid)?.perms?.includes(p));
+function paintMe() {
+  $("menm").textContent = myName();
+  const a = avatar(myName(), user.uid); a.id = "meav"; a.onclick = () => showProfile(user.uid); $("meav").replaceWith(a);
+}
+$("cfg").onclick = () => editProfile();
+function modal(...nodes) {
+  const x = h("button", { className: "btn g", textContent: "Закрыть" }); x.onclick = closeM;
+  $("pc").replaceChildren(...nodes, h("div", { className: "row" }, x)); $("pnl").classList.add("show");
+}
+const closeM = () => $("pnl").classList.remove("show");
+$("pnl").onclick = e => e.target === $("pnl") && closeM();
+const mkBtn = (t, fn, cls = "btn g") => { const b = h("button", { className: cls, textContent: t, style: "margin:6px 6px 0 0" }); b.onclick = fn; return b; };
+
+async function showProfile(uid, fb) {
+  let u = ucache[uid];
+  if (!u || !u.name) { try { const d = await getDoc(doc(db, "users", uid)); u = ucache[uid] = d.exists() ? d.data() : {}; } catch { u = {}; } }
+  const nm = u.name || fb || "Пользователь", me = user.uid, items = [];
+  const a = avatar(nm, uid); Object.assign(a.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
+  items.push(a, h("h1", { textContent: nm, style: "text-align:center;font-size:22px" }));
+  if (u.bio) items.push(h("p", { textContent: u.bio, style: "margin:6px 0 0" }));
+  const r = cur && cur.members?.includes(uid) ? roleOf(uid) : null;
+  if (r) items.push(h("div", { style: "text-align:center" }, h("span", { className: "rl", textContent: r.name, style: `color:${r.color};border-color:${r.color}` })));
+  if (cur && cur.owner === uid) items.push(h("p", { textContent: "👑 Владелец сервера", style: "margin:6px 0 0" }));
+  if (cur && cur.to?.[uid] > Date.now()) items.push(h("p", { textContent: "🔇 Ограничен в правах", style: "margin:6px 0 0;color:#fa777c" }));
+  items.push(h("p", { textContent: "ID: " + uid, style: "font-size:11px;margin:10px 0 0;word-break:break-all" }));
+  if (uid === me) items.push(mkBtn("✏️ Редактировать профиль", editProfile, "btn full"));
+  else if (cur && cur.members?.includes(uid) && uid !== cur.owner) {
+    const ref = doc(db, "servers", cur.id), done = p => p.then(() => { toast("Готово"); closeM(); }).catch(e => toast("Ошибка: " + e.code));
+    if (perm(me, "roles")) {
+      const sel = h("select", { className: "in" }); sel.append(new Option("Без роли", "")); (cur.roles || []).forEach(x => sel.append(new Option(x.name, x.id))); sel.value = (cur.mr || {})[uid] || "";
+      sel.onchange = () => done(updateDoc(ref, { ["mr." + uid]: sel.value || deleteField() }));
+      items.push(h("label", { textContent: "РОЛЬ" }), sel);
+    }
+    if (perm(me, "mod") && (me === cur.owner || !perm(uid, "mod"))) {
+      const lim = ms => done(updateDoc(ref, { ["to." + uid]: ms ? Date.now() + ms : deleteField() }));
+      items.push(h("div", { className: "sec" }, h("span", { textContent: "МОДЕРАЦИЯ" })),
+        mkBtn("⏱ Таймаут 10 мин", () => lim(6e5)), mkBtn("⏱ Таймаут 1 час", () => lim(36e5)), mkBtn("🔇 Запретить писать", () => lim(3e11)), mkBtn("🔊 Снять ограничение", () => lim(0)),
+        mkBtn("🔨 Забанить", () => confirm("Забанить " + nm + "?") && done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField(), ["bn." + uid]: nm })), "btn red"));
+    }
+  }
+  modal(...items);
+}
+function square(file) {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => { const m = Math.min(i.width, i.height), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(i, (i.width - m) / 2, (i.height - m) / 2, m, m, 0, 0, 128, 128); res(c.toDataURL("image/jpeg", .8)); };
+    i.onerror = rej; i.src = URL.createObjectURL(file);
+  });
+}
+function editProfile() {
+  const u = ucache[user.uid] || {}; let av = u.avatar || null;
+  const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" });
+  const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
+  const f = h("input", { type: "file", accept: "image/*", hidden: true });
+  f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); prev.style.backgroundImage = `url(${av})`; prev.classList.add("img"); } catch { toast("Не удалось обработать фото"); } };
+  const save = mkBtn("Сохранить", async () => {
+    const name = nm.value.trim(); if (!name) return toast("Введите ник");
+    try {
+      await updateProfile(auth.currentUser, { displayName: name }); user = auth.currentUser;
+      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), avatar: av || "" };
+      await setDoc(doc(db, "users", user.uid), data, { merge: true }); ucache[user.uid] = { ...ucache[user.uid], ...data };
+      servers.forEach(x => updateDoc(doc(db, "servers", x.id), { ["names." + user.uid]: name }).catch(() => {}));
+      friends.forEach(x => updateDoc(doc(db, "friends", x.id), { ["names." + user.uid]: name }).catch(() => {}));
+      paintMe(); renderMembers(); redraw && redraw(); closeM(); toast("Профиль обновлён");
+    } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
+  }, "btn full");
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, f, mkBtn("📷 Сменить аватарку", () => f.click()), h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, save);
+}
+function newRole() {
+  const nm = h("input", { className: "in", placeholder: "Название роли", maxLength: 20 }), col = h("input", { type: "color", value: "#5865f2", style: "width:100%;height:40px;margin-top:10px;border:0;background:none" });
+  const cb = (k, t) => { const i = h("input", { type: "checkbox" }); const l = h("label", { style: "display:block;margin-top:10px;font-size:14px;color:var(--txt);font-weight:400" }, i, " " + t); l.k = k; l.i = i; return l; };
+  const c1 = cb("mod", "Банить, запрещать писать, таймаут"), c2 = cb("roles", "Создавать и выдавать роли");
+  const ok = mkBtn("Создать", async () => {
+    const name = nm.value.trim(); if (!name) return toast("Введите название");
+    try { await updateDoc(doc(db, "servers", cur.id), { roles: arrayUnion({ id: Date.now().toString(36), name, color: col.value, perms: [c1, c2].filter(c => c.i.checked).map(c => c.k) }) }); closeM(); toast("Роль создана"); }
+    catch (e) { toast("Ошибка: " + e.code); }
+  }, "btn full");
+  modal(h("h1", { textContent: "Новая роль", style: "font-size:22px" }), nm, col, c1, c2, ok);
+}
+function serverPanel() {
+  if (!cur) return; const me = user.uid, ref = doc(db, "servers", cur.id), n = [];
+  n.push(h("h1", { textContent: cur.name, style: "text-align:center;font-size:22px" }), h("p", { textContent: "Код приглашения: " + cur.id, style: "margin:10px 0 0;word-break:break-all;font-size:13px" }),
+    mkBtn("📋 Копировать код", async () => { try { await navigator.clipboard.writeText(cur.id); toast("Код скопирован"); } catch { toast("Код: " + cur.id); } }));
+  n.push(h("div", { className: "sec" }, h("span", { textContent: "УЧАСТНИКИ" })));
+  Object.entries(cur.names || {}).forEach(([uid, nm]) => n.push(mkBtn(nameOf(uid, nm) + (uid === cur.owner ? " 👑" : ""), () => showProfile(uid, nm))));
+  if (perm(me, "roles")) {
+    n.push(h("div", { className: "sec" }, h("span", { textContent: "РОЛИ (нажмите, чтобы удалить)" })));
+    (cur.roles || []).forEach(r => { const c = h("span", { className: "rl", textContent: r.name + (r.perms.length ? " ⚙" : ""), style: `color:${r.color};border-color:${r.color}` }); c.onclick = async () => { if (!confirm("Удалить роль «" + r.name + "»?")) return; const mr = { ...(cur.mr || {}) }; for (const k in mr) if (mr[k] === r.id) delete mr[k]; await updateDoc(ref, { roles: (cur.roles || []).filter(x => x.id !== r.id), mr }).catch(() => {}); closeM(); }; n.push(c); });
+    n.push(mkBtn("➕ Создать роль", newRole));
+  }
+  const bans = Object.entries(cur.bn || {});
+  if (bans.length && perm(me, "mod")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "БАН-ЛИСТ" }))); bans.forEach(([uid, nm]) => n.push(mkBtn("Разбанить " + nm, () => updateDoc(ref, { ["bn." + uid]: deleteField() }).then(() => { toast("Разбанен"); closeM(); })))); }
+  n.push(h("div", { className: "sec" }, h("span", { textContent: "СЕРВЕР" })));
+  if (cur.owner !== me) n.push(mkBtn("🚪 Покинуть сервер", () => confirm("Покинуть сервер?") && updateDoc(ref, { members: arrayRemove(me) }).then(closeM), "btn red"));
+  else n.push(mkBtn("🗑 Удалить сервер", () => confirm("Удалить сервер навсегда?") && deleteDoc(ref).then(closeM), "btn red"));
+  modal(...n);
+}
+$("menu").onclick = serverPanel;
+
+/* ---------- VOICE ---------- */
+let rec = null, chunks = [], recT;
+$("mic").onclick = async () => {
+  if (rec) { rec.stop(); return; }
+  if (!mpath) return toast("Сначала выберите канал или друга");
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+    rec = new MediaRecorder(st, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 24000 }); chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = async () => {
+      clearTimeout(recT); st.getTracks().forEach(t => t.stop()); $("mic").classList.remove("rec"); $("mic").textContent = "🎤";
+      const blob = new Blob(chunks, { type: rec.mimeType }); rec = null;
+      if (blob.size < 1500) return;
+      if (blob.size > 600000) return toast("Слишком длинное сообщение");
+      const d = await new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(blob); });
+      await send({ text: "", aud: d });
+    };
+    rec.start(); $("mic").classList.add("rec"); $("mic").textContent = "⏹"; toast("Запись… нажмите ⏹, чтобы отправить");
+    recT = setTimeout(() => rec && rec.stop(), 60000);
+  } catch { rec = null; toast("Нет доступа к микрофону"); }
+};
+
+/* ---------- FRIENDS ---------- */
+const pid = (a, b) => [a, b].sort().join("_");
+const sec = t => h("div", { className: "sec" }, h("span", { textContent: t }));
+function goHome() {
+  unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); cur = curCh = mpath = null; home = true;
+  $("menu").hidden = true; $("sname").textContent = "Друзья"; $("cname").textContent = "Друзья"; $("inp").disabled = true; $("inp").placeholder = "Выберите друга";
+  $("msgs").replaceChildren(h("div", { className: "empty", textContent: "Выберите друга слева или добавьте нового по имени или ID." }));
+  renderRail(); renderMembers(); renderHome();
+}
+function renderHome() {
+  const c = $("chs"); c.replaceChildren();
+  const btn = (t, f) => { const b = h("button", { className: "ch", textContent: t }); b.onclick = f; return b; };
+  c.append(btn("➕ Добавить друга", addFriend), btn("🆔 Скопировать мой ID", async () => { try { await navigator.clipboard.writeText(user.uid); toast("ID скопирован"); } catch { toast("ID: " + user.uid); } }));
+  const other = f => f.users.find(u => u !== user.uid), pend = friends.filter(f => f.status === "pending");
+  const inc = pend.filter(f => f.from !== user.uid), out = pend.filter(f => f.from === user.uid);
+  const row = (f, label, acts) => { const r = h("div", { className: "ch", style: "cursor:default" }, h("span", { textContent: label, style: "flex:1;overflow:hidden;text-overflow:ellipsis" })); acts.forEach(([t, fn]) => { const b = h("button", { className: "ib", textContent: t }); b.onclick = fn; r.append(b); }); c.append(r); };
+  const del = f => deleteDoc(doc(db, "friends", f.id));
+  if (inc.length) { c.append(sec("ЗАПРОСЫ — " + inc.length)); inc.forEach(f => row(f, f.names[f.from], [["✓", () => updateDoc(doc(db, "friends", f.id), { status: "accepted" })], ["✗", () => del(f)]])); }
+  if (out.length) { c.append(sec("ОТПРАВЛЕНО")); out.forEach(f => row(f, f.names[other(f)] + " (ждёт ответа)", [["✗", () => del(f)]])); }
+  const ok = friends.filter(f => f.status === "accepted");
+  c.append(sec("ДРУЗЬЯ — " + ok.length));
+  if (!ok.length) c.append(h("div", { className: "empty", textContent: "Пока никого. Нажмите «Добавить друга»." }));
+  ok.forEach(f => { const n = f.names[other(f)]; const b = btn("@ " + n, () => { openChat(["friends", f.id, "messages"], "@ " + n, "Написать " + n, false, "Это начало вашей переписки. Скажите привет!"); $("app").classList.remove("nav"); renderHome(); }); if (mpath && mpath[1] === f.id) b.classList.add("on"); c.append(b); });
+}
+async function addFriend() {
+  const v = await ask("Добавить друга", "Введите имя пользователя или его ID.", "Имя или ID"); if (!v) return;
+  try {
+    let uid = null, name = null;
+    const byId = await getDoc(doc(db, "users", v));
+    if (byId.exists()) { uid = v; name = byId.data().name; }
+    else { const q = await getDocs(query(collection(db, "users"), where("nameLower", "==", v.toLowerCase()), limit(1))); if (!q.empty) { uid = q.docs[0].id; name = q.docs[0].data().name; } }
+    if (!uid) return toast("Пользователь не найден");
+    if (uid === user.uid) return toast("Это вы 🙂");
+    const id = pid(user.uid, uid);
+    if (friends.find(f => f.id === id)) return toast("Уже в друзьях или ждёт ответа");
+    await setDoc(doc(db, "friends", id), { users: [user.uid, uid], names: { [user.uid]: myName(), [uid]: name }, status: "pending", from: user.uid });
+    toast("Запрос отправлен");
+  } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
+}
+
+/* ---------- DIALOG ---------- */
+function ask(title, sub, placeholder, value = "") {
+  return new Promise(res => {
+    $("dt").textContent = title; $("dp").textContent = sub; $("di").placeholder = placeholder; $("di").value = value; $("derr").textContent = "";
+    $("dlg").classList.add("show"); $("di").focus();
+    const close = v => { $("dlg").classList.remove("show"); $("dyes").onclick = $("dno").onclick = $("di").onkeydown = null; res(v); };
+    $("dyes").onclick = () => close($("di").value.trim());
+    $("dno").onclick = () => close(null);
+    $("di").onkeydown = e => { if (e.key === "Enter") close($("di").value.trim()); if (e.key === "Escape") close(null); };
+  });
+}
+async function createServer() {
+  const name = await ask("Создайте свой сервер", "Придумайте название сервера.", "Мой сервер", myName() + " — сервер"); if (!name) return;
+  try {
+    const s = await addDoc(collection(db, "servers"), { name, owner: user.uid, members: [user.uid], names: { [user.uid]: myName() }, createdAt: serverTimestamp() });
+    await addDoc(collection(db, "servers", s.id, "channels"), { name: "общий", createdAt: serverTimestamp() });
+    toast("Сервер создан"); setTimeout(() => selectServer(s.id), 400);
+  } catch (e) { toast("Ошибка: " + e.code); }
+}
+async function joinServer() {
+  const code = await ask("Присоединиться к серверу", "Вставьте код приглашения.", "Код приглашения"); if (!code) return;
+  try {
+    const ref = doc(db, "servers", code), s = await getDoc(ref);
+    if (!s.exists()) return toast("Сервер с таким кодом не найден");
+    if (s.data().bn?.[user.uid]) return toast("Вы забанены на этом сервере");
+    await updateDoc(ref, { members: arrayUnion(user.uid), ["names." + user.uid]: myName() });
+    toast("Вы присоединились к «" + s.data().name + "»"); setTimeout(() => selectServer(code), 500);
+  } catch (e) { toast("Ошибка: " + e.code); }
+}
+async function createChannel() {
+  if (!cur) return;
+  const name = (await ask("Создать канал", "Название канала.", "новый-канал") || "").toLowerCase().replace(/\s+/g, "-"); if (!name) return;
+  try { await addDoc(collection(db, "servers", cur.id, "channels"), { name, createdAt: serverTimestamp() }); } catch (e) { toast("Ошибка: " + e.code); }
+}
+$("dp").style.whiteSpace = "pre-line";
+</script>
+</body>
+</html>
