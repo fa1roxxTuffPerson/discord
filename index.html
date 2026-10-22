@@ -46,8 +46,10 @@ input.in{width:100%;padding:10px;background:var(--bg1);border:0;border-radius:4p
 .m .del{position:absolute;right:16px;top:-10px;display:none;background:var(--bg2);border:1px solid #0004}
 .m:hover .del{display:block}
 .empty{color:var(--mut);text-align:center;margin-top:40px;padding:0 20px}
-#form{padding:0 16px 24px;flex:none}
-#inp{width:100%;background:#383a40;border:0;border-radius:8px;padding:12px 16px}
+#form{margin:0 16px 24px;flex:none;display:flex;align-items:center;background:#383a40;border-radius:8px;padding:0 6px}
+#inp{flex:1;min-width:0;background:none;border:0;padding:12px 8px}#inp:focus-visible{outline:0}#form .ib{font-size:18px}
+.pic{display:block;max-width:min(320px,100%);max-height:300px;border-radius:8px;margin-top:4px;cursor:zoom-in}
+#emp{position:fixed;bottom:84px;right:16px;background:var(--bg2);border-radius:8px;padding:8px;display:none;grid-template-columns:repeat(8,1fr);gap:2px;box-shadow:0 4px 20px #0008;z-index:8;max-width:calc(100vw - 32px)}#emp.show{display:grid}#emp button{background:none;border:0;font-size:22px;cursor:pointer;border-radius:4px;padding:2px}#emp button:hover{background:var(--hover)}
 #mem{width:240px;background:var(--bg2);padding:16px 8px;overflow:auto}
 #mem h4{color:var(--mut);font-size:12px;padding:0 8px 8px}
 .mb{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:4px}.mb:hover{background:var(--hover)}
@@ -95,7 +97,8 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
   <main id="main">
     <div class="hd" style="justify-content:flex-start"><button class="ib burger" id="burger" aria-label="Меню">☰</button><span id="cname"># —</span></div>
     <div id="msgs"><div class="empty">Создайте сервер или присоединитесь к существующему по коду приглашения.</div></div>
-    <div id="form"><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled></div>
+    <div id="form"><button class="ib" id="att" title="Отправить фото">📎</button><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*" hidden></div>
+    <div id="emp"></div>
   </main>
   <aside id="mem"></aside>
   <div id="bd"></div>
@@ -106,12 +109,13 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
   <input class="in" id="di" maxlength="40"><div class="err" id="derr"></div>
   <div class="row"><button class="btn g" id="dno">Отмена</button><button class="btn" id="dyes">Готово</button></div>
 </div></div>
+<div class="dlg" id="lbw"><img id="lb" alt="" style="max-width:95vw;max-height:90vh;border-radius:8px"></div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyBSyynf_g3goTl2bS05slOiylDnGru0m54",
@@ -131,7 +135,7 @@ const colorOf = s => colors[[...String(s)].reduce((a, c) => a + c.charCodeAt(0),
 const avatar = name => { const a = h("div", { className: "av", textContent: (name || "?")[0].toUpperCase() }); a.style.background = colorOf(name); return a; };
 const toast = t => { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = "none", 2200); };
 
-let user = null, servers = [], cur = null, curCh = null, chans = [];
+let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null;
 let unsub = { sv: null, ch: null, msg: null };
 
 /* ---------- AUTH ---------- */
@@ -167,7 +171,7 @@ $("out").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => {
   user = u;
   if (u) { $("auth").style.display = "none"; $("app").style.display = "grid"; boot(); }
-  else { Object.values(unsub).forEach(f => f && f()); unsub = {}; servers = []; cur = curCh = null; $("auth").style.display = "grid"; $("app").style.display = "none"; }
+  else { Object.values(unsub).forEach(f => f && f()); unsub = {}; servers = []; friends = []; home = false; mpath = null; cur = curCh = null; $("auth").style.display = "grid"; $("app").style.display = "none"; }
 });
 const myName = () => user.displayName || user.email.split("@")[0];
 
@@ -175,25 +179,31 @@ const myName = () => user.displayName || user.email.split("@")[0];
 function boot() {
   if (!user) return;
   $("menm").textContent = myName(); $("meav").replaceWith(Object.assign(avatar(myName()), { id: "meav" }));
+  setDoc(doc(db, "users", user.uid), { name: myName(), nameLower: myName().toLowerCase() }, { merge: true }).catch(() => {});
+  unsub.fr && unsub.fr();
+  unsub.fr = onSnapshot(query(collection(db, "friends"), where("users", "array-contains", user.uid)), snap => { friends = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderRail(); if (home) renderHome(); }, e => toast("Друзья: " + e.code));
   unsub.sv && unsub.sv();
   unsub.sv = onSnapshot(query(collection(db, "servers"), where("members", "array-contains", user.uid)), snap => {
     servers = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
     if (cur && !servers.find(s => s.id === cur.id)) { cur = null; selectServer(null); }
     else if (cur) cur = servers.find(s => s.id === cur.id);
-    if (!cur && servers.length) { selectServer(servers[0].id); return; }
+    if (!cur && !home && servers.length) { selectServer(servers[0].id); return; }
     renderRail(); renderMembers(); $("sname").textContent = cur ? cur.name : "Выберите сервер";
   }, e => toast("Ошибка: " + e.code));
 }
 function renderRail() {
   const r = $("rail"); r.replaceChildren();
-  servers.forEach(s => { const b = h("button", { className: "sv" + (cur?.id === s.id ? " on" : ""), textContent: s.name.slice(0, 2).toUpperCase(), title: s.name }); b.onclick = () => selectServer(s.id); r.append(b); });
+  const inc = friends.filter(f => f.status === "pending" && f.from !== user.uid).length;
+  const hb = h("button", { className: "sv" + (home ? " on" : ""), textContent: inc ? "💬" + inc : "💬", title: "Друзья и личные сообщения" }); hb.onclick = goHome;
+  r.append(hb, h("div", { className: "sep" }));
+  servers.forEach(s => { const b = h("button", { className: "sv" + (!home && cur?.id === s.id ? " on" : ""), textContent: s.name.slice(0, 2).toUpperCase(), title: s.name }); b.onclick = () => selectServer(s.id); r.append(b); });
   r.append(h("div", { className: "sep" }));
   const add = h("button", { className: "sv add", textContent: "+", title: "Создать сервер" }); add.onclick = createServer;
   const join = h("button", { className: "sv add", textContent: "→", title: "Присоединиться по коду" }); join.onclick = joinServer;
   r.append(add, join);
 }
 function selectServer(id) {
-  unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); curCh = null; chans = [];
+  unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); curCh = null; chans = []; home = false; mpath = null;
   cur = servers.find(s => s.id === id) || null;
   renderRail(); renderMembers(); renderChans(); $("menu").hidden = !cur;
   $("sname").textContent = cur ? cur.name : "Выберите сервер";
@@ -222,38 +232,108 @@ function renderMembers() {
 }
 
 /* ---------- MESSAGES ---------- */
-const fmt = ts => { if (!ts) return "отправка…"; const d = ts.toDate(), t = d.toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }); return d.toDateString() === new Date().toDateString() ? "Сегодня в " + t : d.toLocaleDateString("ru") + " " + t; };
+let canDelAll = false;
+const hm = ts => ts ? ts.toDate().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }) : "";
+const fmt = ts => { if (!ts) return "отправка…"; const d = ts.toDate(); return d.toDateString() === new Date().toDateString() ? "Сегодня в " + hm(ts) : d.toLocaleDateString("ru") + " " + hm(ts); };
 function selectChannel(id) {
-  unsub.msg && unsub.msg(); curCh = id; $("app").classList.remove("nav");
-  const ch = chans.find(c => c.id === id); renderChans();
-  $("cname").textContent = "# " + (ch?.name || ""); $("inp").disabled = false; $("inp").placeholder = "Написать в #" + (ch?.name || ""); $("inp").focus();
-  const sid = cur.id;
-  unsub.msg = onSnapshot(query(collection(db, "servers", sid, "channels", id, "messages"), orderBy("createdAt", "desc"), limit(100)), snap => {
+  curCh = id; const ch = chans.find(c => c.id === id); renderChans(); $("app").classList.remove("nav");
+  openChat(["servers", cur.id, "channels", id, "messages"], "# " + (ch?.name || ""), "Написать в #" + (ch?.name || ""), cur.owner === user.uid, "Это начало канала. Напишите первое сообщение!");
+}
+function openChat(path, title, ph, admin, emptyText) {
+  unsub.msg && unsub.msg(); mpath = path; canDelAll = admin;
+  $("cname").textContent = title; $("inp").disabled = false; $("inp").placeholder = ph; $("inp").focus();
+  unsub.msg = onSnapshot(query(collection(db, ...path), orderBy("createdAt", "desc"), limit(100)), snap => {
+    if (mpath !== path) return;
     const box = $("msgs"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || !box.children.length;
     const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
     box.replaceChildren();
-    if (!list.length) box.append(h("div", { className: "empty", textContent: "Это начало канала #" + (ch?.name || "") + ". Напишите первое сообщение!" }));
+    if (!list.length) box.append(h("div", { className: "empty", textContent: emptyText }));
     let prev = null;
     list.forEach(m => {
       const secs = m.createdAt?.seconds || Date.now() / 1000;
       const first = !prev || prev.uid !== m.uid || secs - (prev.createdAt?.seconds || secs) > 420;
       const body = h("div", { className: "b" });
       if (first) body.append(h("div", {}, h("span", { className: "who", textContent: m.name, style: "color:" + colorOf(m.name) }), h("span", { className: "ts", textContent: fmt(m.createdAt) })));
-      body.append(h("div", { className: "t", textContent: m.text }));
-      const row = h("div", { className: "m" + (first ? " first" : "") }, first ? avatar(m.name) : h("div", { className: "gap", textContent: m.createdAt ? m.createdAt.toDate().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }) : "" }), body);
-      if (m.uid === user.uid || cur.owner === user.uid) { const x = h("button", { className: "ib del", textContent: "🗑", title: "Удалить" }); x.onclick = () => deleteDoc(doc(db, "servers", sid, "channels", id, "messages", m.id)).catch(() => toast("Не удалось удалить")); row.append(x); }
+      if (m.text) body.append(h("div", { className: "t", textContent: m.text }));
+      if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
+      const row = h("div", { className: "m" + (first ? " first" : "") }, first ? avatar(m.name) : h("div", { className: "gap", textContent: hm(m.createdAt) }), body);
+      if (m.uid === user.uid || canDelAll) { const x = h("button", { className: "ib del", textContent: "🗑", title: "Удалить" }); x.onclick = () => deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); row.append(x); }
       box.append(row); prev = m;
     });
     if (atEnd) box.scrollTop = box.scrollHeight;
   }, e => toast("Ошибка чтения: " + e.code));
 }
+async function send(data) {
+  if (!mpath) return false;
+  try { await addDoc(collection(db, ...mpath), { ...data, uid: user.uid, name: myName(), createdAt: serverTimestamp() }); return true; }
+  catch (er) { toast("Не отправлено: " + er.code); return false; }
+}
 $("inp").addEventListener("keydown", async e => {
   if (e.key !== "Enter" || e.shiftKey) return;
-  const text = $("inp").value.trim(); if (!text || !cur || !curCh) return;
-  $("inp").value = "";
-  try { await addDoc(collection(db, "servers", cur.id, "channels", curCh, "messages"), { text, uid: user.uid, name: myName(), createdAt: serverTimestamp() }); }
-  catch (er) { $("inp").value = text; toast("Не отправлено: " + er.code); }
+  const text = $("inp").value.trim(); if (!text) return;
+  $("inp").value = ""; if (!(await send({ text }))) $("inp").value = text;
 });
+function shrink(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 900 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = img.width * k | 0; c.height = img.height * k | 0; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      let q = .75, d = c.toDataURL("image/jpeg", q);
+      while (d.length > 700000 && q > .3) { q -= .1; d = c.toDataURL("image/jpeg", q); }
+      d.length > 900000 ? rej() : res(d);
+    };
+    img.onerror = rej; img.src = URL.createObjectURL(file);
+  });
+}
+$("att").onclick = () => mpath ? $("file").click() : toast("Сначала выберите канал или друга");
+$("file").onchange = async () => {
+  const f = $("file").files[0]; $("file").value = ""; if (!f || !mpath) return;
+  try { toast("Отправка фото…"); await send({ text: "", img: await shrink(f) }); } catch { toast("Не удалось обработать фото"); }
+};
+$("lbw").onclick = () => $("lbw").classList.remove("show");
+"😀😂😍🥰😎🤔😭😡👍👎🙏🔥❤️🎉💀👀😴🤝✨💯🎮🍕☕🌙".match(/\p{Extended_Pictographic}\uFE0F?/gu).forEach(em => { const b = h("button", { textContent: em }); b.onclick = () => { $("inp").value += em; $("inp").focus(); }; $("emp").append(b); });
+$("emo").onclick = () => $("emp").classList.toggle("show");
+
+/* ---------- FRIENDS ---------- */
+const pid = (a, b) => [a, b].sort().join("_");
+const sec = t => h("div", { className: "sec" }, h("span", { textContent: t }));
+function goHome() {
+  unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); cur = curCh = mpath = null; home = true;
+  $("menu").hidden = true; $("sname").textContent = "Друзья"; $("cname").textContent = "Друзья"; $("inp").disabled = true; $("inp").placeholder = "Выберите друга";
+  $("msgs").replaceChildren(h("div", { className: "empty", textContent: "Выберите друга слева или добавьте нового по имени или ID." }));
+  renderRail(); renderMembers(); renderHome();
+}
+function renderHome() {
+  const c = $("chs"); c.replaceChildren();
+  const btn = (t, f) => { const b = h("button", { className: "ch", textContent: t }); b.onclick = f; return b; };
+  c.append(btn("➕ Добавить друга", addFriend), btn("🆔 Скопировать мой ID", async () => { try { await navigator.clipboard.writeText(user.uid); toast("ID скопирован"); } catch { toast("ID: " + user.uid); } }));
+  const other = f => f.users.find(u => u !== user.uid), pend = friends.filter(f => f.status === "pending");
+  const inc = pend.filter(f => f.from !== user.uid), out = pend.filter(f => f.from === user.uid);
+  const row = (f, label, acts) => { const r = h("div", { className: "ch", style: "cursor:default" }, h("span", { textContent: label, style: "flex:1;overflow:hidden;text-overflow:ellipsis" })); acts.forEach(([t, fn]) => { const b = h("button", { className: "ib", textContent: t }); b.onclick = fn; r.append(b); }); c.append(r); };
+  const del = f => deleteDoc(doc(db, "friends", f.id));
+  if (inc.length) { c.append(sec("ЗАПРОСЫ — " + inc.length)); inc.forEach(f => row(f, f.names[f.from], [["✓", () => updateDoc(doc(db, "friends", f.id), { status: "accepted" })], ["✗", () => del(f)]])); }
+  if (out.length) { c.append(sec("ОТПРАВЛЕНО")); out.forEach(f => row(f, f.names[other(f)] + " (ждёт ответа)", [["✗", () => del(f)]])); }
+  const ok = friends.filter(f => f.status === "accepted");
+  c.append(sec("ДРУЗЬЯ — " + ok.length));
+  if (!ok.length) c.append(h("div", { className: "empty", textContent: "Пока никого. Нажмите «Добавить друга»." }));
+  ok.forEach(f => { const n = f.names[other(f)]; const b = btn("@ " + n, () => { openChat(["friends", f.id, "messages"], "@ " + n, "Написать " + n, false, "Это начало вашей переписки. Скажите привет!"); $("app").classList.remove("nav"); renderHome(); }); if (mpath && mpath[1] === f.id) b.classList.add("on"); c.append(b); });
+}
+async function addFriend() {
+  const v = await ask("Добавить друга", "Введите имя пользователя или его ID.", "Имя или ID"); if (!v) return;
+  try {
+    let uid = null, name = null;
+    const byId = await getDoc(doc(db, "users", v));
+    if (byId.exists()) { uid = v; name = byId.data().name; }
+    else { const q = await getDocs(query(collection(db, "users"), where("nameLower", "==", v.toLowerCase()), limit(1))); if (!q.empty) { uid = q.docs[0].id; name = q.docs[0].data().name; } }
+    if (!uid) return toast("Пользователь не найден");
+    if (uid === user.uid) return toast("Это вы 🙂");
+    const id = pid(user.uid, uid);
+    if (friends.find(f => f.id === id)) return toast("Уже в друзьях или ждёт ответа");
+    await setDoc(doc(db, "friends", id), { users: [user.uid, uid], names: { [user.uid]: myName(), [uid]: name }, status: "pending", from: user.uid });
+    toast("Запрос отправлен");
+  } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
+}
 
 /* ---------- DIALOG ---------- */
 function ask(title, sub, placeholder, value = "") {
