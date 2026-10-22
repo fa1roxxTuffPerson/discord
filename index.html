@@ -59,6 +59,10 @@ input.in{width:100%;padding:10px;background:var(--bg1);border:0;border-radius:4p
 .dlg .card{box-shadow:none}.row{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
 .row .btn.g{background:none}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111214;padding:10px 18px;border-radius:6px;display:none;z-index:99}
+.av.img{background-size:cover;background-position:center;color:transparent}.m .av,.mb .av{cursor:pointer}
+.rl{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;margin:3px 4px 0 0;border:1px solid;cursor:pointer}
+audio{display:block;margin-top:4px;max-width:100%;height:40px}#mic.rec{color:var(--red);animation:pl 1s infinite}@keyframes pl{50%{opacity:.4}}
+select.in{margin-top:8px}.who{cursor:pointer}
 @media(max-width:900px){#mem{display:none}#app{grid-template-columns:72px 240px 1fr}}
 .burger,#bd{display:none}
 @media(max-width:700px){
@@ -92,12 +96,12 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
   <aside id="side">
     <div class="hd"><span id="sname">Выберите сервер</span><button class="ib" id="menu" title="Меню сервера" hidden>⋮</button></div>
     <div id="chs"></div>
-    <div id="me"><div class="av" id="meav"></div><span class="nm" id="menm"></span><button class="ib" id="out" title="Выйти">⎋</button></div>
+    <div id="me"><div class="av" id="meav"></div><span class="nm" id="menm"></span><button class="ib" id="cfg" title="Мой профиль">⚙</button><button class="ib" id="out" title="Выйти">⎋</button></div>
   </aside>
   <main id="main">
     <div class="hd" style="justify-content:flex-start"><button class="ib burger" id="burger" aria-label="Меню">☰</button><span id="cname"># —</span></div>
     <div id="msgs"><div class="empty">Создайте сервер или присоединитесь к существующему по коду приглашения.</div></div>
-    <div id="form"><button class="ib" id="att" title="Отправить фото">📎</button><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*" hidden></div>
+    <div id="form"><button class="ib" id="att" title="Отправить фото">📎</button><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="mic" title="Голосовое сообщение">🎤</button><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*" hidden></div>
     <div id="emp"></div>
   </main>
   <aside id="mem"></aside>
@@ -110,12 +114,13 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
   <div class="row"><button class="btn g" id="dno">Отмена</button><button class="btn" id="dyes">Готово</button></div>
 </div></div>
 <div class="dlg" id="lbw"><img id="lb" alt="" style="max-width:95vw;max-height:90vh;border-radius:8px"></div>
+<div class="dlg" id="pnl"><div class="card" id="pc" style="max-height:88vh;overflow:auto"></div></div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyBSyynf_g3goTl2bS05slOiylDnGru0m54",
@@ -130,9 +135,10 @@ setPersistence(auth, browserLocalPersistence).catch(() => {}); // вход со�
 const $ = id => document.getElementById(id);
 queueMicrotask(() => { $("burger").onclick = () => $("app").classList.toggle("nav"); $("bd").onclick = () => $("app").classList.remove("nav"); });
 const h = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach(k => e.append(k)); return e; };
+const ucache = {};
 const colors = ["#5865f2","#eb459e","#f0b232","#23a55a","#00a8fc","#ed4245","#9b59b6"];
 const colorOf = s => colors[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length];
-const avatar = name => { const a = h("div", { className: "av", textContent: (name || "?")[0].toUpperCase() }); a.style.background = colorOf(name); return a; };
+const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url(${u.avatar})`; a.classList.add("img"); } else a.style.background = colorOf(name); return a; };
 const toast = t => { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = "none", 2200); };
 
 let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null;
@@ -178,7 +184,7 @@ const myName = () => user.displayName || user.email.split("@")[0];
 /* ---------- SERVERS ---------- */
 function boot() {
   if (!user) return;
-  $("menm").textContent = myName(); $("meav").replaceWith(Object.assign(avatar(myName()), { id: "meav" }));
+  delete ucache[user.uid]; paintMe();
   setDoc(doc(db, "users", user.uid), { name: myName(), nameLower: myName().toLowerCase() }, { merge: true }).catch(() => {});
   unsub.fr && unsub.fr();
   unsub.fr = onSnapshot(query(collection(db, "friends"), where("users", "array-contains", user.uid)), snap => { friends = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderRail(); if (home) renderHome(); }, e => toast("Друзья: " + e.code));
@@ -228,11 +234,11 @@ function renderMembers() {
   if (!cur) return;
   const names = cur.names || {};
   m.append(h("h4", { textContent: "УЧАСТНИКИ — " + Object.keys(names).length }));
-  Object.entries(names).forEach(([uid, n]) => m.append(h("div", { className: "mb" }, avatar(n), h("span", { textContent: n + (uid === cur.owner ? " 👑" : "") }))));
+  Object.entries(names).forEach(([uid, n]) => { const nn = nameOf(uid, n); const r = h("div", { className: "mb", style: "cursor:pointer" }, avatar(nn, uid), h("span", { textContent: nn + (uid === cur.owner ? " 👑" : ""), style: "color:" + nameColor(uid, nn) })); r.onclick = () => showProfile(uid, nn); m.append(r); });
 }
 
 /* ---------- MESSAGES ---------- */
-let canDelAll = false;
+let canDelAll = false, redraw = null, rdT;
 const hm = ts => ts ? ts.toDate().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }) : "";
 const fmt = ts => { if (!ts) return "отправка…"; const d = ts.toDate(); return d.toDateString() === new Date().toDateString() ? "Сегодня в " + hm(ts) : d.toLocaleDateString("ru") + " " + hm(ts); };
 function selectChannel(id) {
@@ -242,29 +248,36 @@ function selectChannel(id) {
 function openChat(path, title, ph, admin, emptyText) {
   unsub.msg && unsub.msg(); mpath = path; canDelAll = admin;
   $("cname").textContent = title; $("inp").disabled = false; $("inp").placeholder = ph; $("inp").focus();
-  unsub.msg = onSnapshot(query(collection(db, ...path), orderBy("createdAt", "desc"), limit(100)), snap => {
-    if (mpath !== path) return;
+  let list = [];
+  const draw = () => {
     const box = $("msgs"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || !box.children.length;
-    const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
     box.replaceChildren();
     if (!list.length) box.append(h("div", { className: "empty", textContent: emptyText }));
     let prev = null;
     list.forEach(m => {
-      const secs = m.createdAt?.seconds || Date.now() / 1000;
+      const nm = nameOf(m.uid, m.name), srv = path[0] === "servers", secs = m.createdAt?.seconds || Date.now() / 1000;
       const first = !prev || prev.uid !== m.uid || secs - (prev.createdAt?.seconds || secs) > 420;
       const body = h("div", { className: "b" });
-      if (first) body.append(h("div", {}, h("span", { className: "who", textContent: m.name, style: "color:" + colorOf(m.name) }), h("span", { className: "ts", textContent: fmt(m.createdAt) })));
+      if (first) { const w = h("span", { className: "who", textContent: nm, style: "color:" + (srv ? nameColor(m.uid, nm) : colorOf(nm)) }); w.onclick = () => showProfile(m.uid, nm); body.append(h("div", {}, w, h("span", { className: "ts", textContent: fmt(m.createdAt) }))); }
       if (m.text) body.append(h("div", { className: "t", textContent: m.text }));
       if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
-      const row = h("div", { className: "m" + (first ? " first" : "") }, first ? avatar(m.name) : h("div", { className: "gap", textContent: hm(m.createdAt) }), body);
+      if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
+      let av; if (first) { av = avatar(nm, m.uid); av.onclick = () => showProfile(m.uid, nm); } else av = h("div", { className: "gap", textContent: hm(m.createdAt) });
+      const row = h("div", { className: "m" + (first ? " first" : "") }, av, body);
       if (m.uid === user.uid || canDelAll) { const x = h("button", { className: "ib del", textContent: "🗑", title: "Удалить" }); x.onclick = () => deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); row.append(x); }
       box.append(row); prev = m;
     });
     if (atEnd) box.scrollTop = box.scrollHeight;
+  };
+  redraw = draw;
+  unsub.msg = onSnapshot(query(collection(db, ...path), orderBy("createdAt", "desc"), limit(100)), snap => {
+    if (mpath !== path) return;
+    list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); draw();
   }, e => toast("Ошибка чтения: " + e.code));
 }
 async function send(data) {
   if (!mpath) return false;
+  if (mpath[0] === "servers" && cur?.to?.[user.uid] > Date.now()) { const t = cur.to[user.uid]; toast(t > Date.now() + 2e11 ? "Вам запретили писать на этом сервере" : "Таймаут до " + new Date(t).toLocaleTimeString("ru")); return false; }
   try { await addDoc(collection(db, ...mpath), { ...data, uid: user.uid, name: myName(), createdAt: serverTimestamp() }); return true; }
   catch (er) { toast("Не отправлено: " + er.code); return false; }
 }
@@ -294,6 +307,139 @@ $("file").onchange = async () => {
 $("lbw").onclick = () => $("lbw").classList.remove("show");
 "😀😂😍🥰😎🤔😭😡👍👎🙏🔥❤️🎉💀👀😴🤝✨💯🎮🍕☕🌙".match(/\p{Extended_Pictographic}\uFE0F?/gu).forEach(em => { const b = h("button", { textContent: em }); b.onclick = () => { $("inp").value += em; $("inp").focus(); }; $("emp").append(b); });
 $("emo").onclick = () => $("emp").classList.toggle("show");
+
+/* ---------- PROFILES / ROLES / MODERATION ---------- */
+function getUser(uid) {
+  if (ucache[uid]) return ucache[uid];
+  ucache[uid] = {};
+  getDoc(doc(db, "users", uid)).then(d => { ucache[uid] = d.exists() ? d.data() : {}; clearTimeout(rdT); rdT = setTimeout(() => { redraw && redraw(); renderMembers(); if (user && uid === user.uid) paintMe(); }, 150); }).catch(() => {});
+  return ucache[uid];
+}
+const nameOf = (uid, fb) => ucache[uid]?.name || fb;
+const roleOf = uid => cur && (cur.roles || []).find(r => r.id === (cur.mr || {})[uid]);
+const nameColor = (uid, fb) => roleOf(uid)?.color || colorOf(fb);
+const perm = (uid, p) => cur && (cur.owner === uid || !!roleOf(uid)?.perms?.includes(p));
+function paintMe() {
+  $("menm").textContent = myName();
+  const a = avatar(myName(), user.uid); a.id = "meav"; a.onclick = () => showProfile(user.uid); $("meav").replaceWith(a);
+}
+$("cfg").onclick = () => editProfile();
+function modal(...nodes) {
+  const x = h("button", { className: "btn g", textContent: "Закрыть" }); x.onclick = closeM;
+  $("pc").replaceChildren(...nodes, h("div", { className: "row" }, x)); $("pnl").classList.add("show");
+}
+const closeM = () => $("pnl").classList.remove("show");
+$("pnl").onclick = e => e.target === $("pnl") && closeM();
+const mkBtn = (t, fn, cls = "btn g") => { const b = h("button", { className: cls, textContent: t, style: "margin:6px 6px 0 0" }); b.onclick = fn; return b; };
+
+async function showProfile(uid, fb) {
+  let u = ucache[uid];
+  if (!u || !u.name) { try { const d = await getDoc(doc(db, "users", uid)); u = ucache[uid] = d.exists() ? d.data() : {}; } catch { u = {}; } }
+  const nm = u.name || fb || "Пользователь", me = user.uid, items = [];
+  const a = avatar(nm, uid); Object.assign(a.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
+  items.push(a, h("h1", { textContent: nm, style: "text-align:center;font-size:22px" }));
+  if (u.bio) items.push(h("p", { textContent: u.bio, style: "margin:6px 0 0" }));
+  const r = cur && cur.members?.includes(uid) ? roleOf(uid) : null;
+  if (r) items.push(h("div", { style: "text-align:center" }, h("span", { className: "rl", textContent: r.name, style: `color:${r.color};border-color:${r.color}` })));
+  if (cur && cur.owner === uid) items.push(h("p", { textContent: "👑 Владелец сервера", style: "margin:6px 0 0" }));
+  if (cur && cur.to?.[uid] > Date.now()) items.push(h("p", { textContent: "🔇 Ограничен в правах", style: "margin:6px 0 0;color:#fa777c" }));
+  items.push(h("p", { textContent: "ID: " + uid, style: "font-size:11px;margin:10px 0 0;word-break:break-all" }));
+  if (uid === me) items.push(mkBtn("✏️ Редактировать профиль", editProfile, "btn full"));
+  else if (cur && cur.members?.includes(uid) && uid !== cur.owner) {
+    const ref = doc(db, "servers", cur.id), done = p => p.then(() => { toast("Готово"); closeM(); }).catch(e => toast("Ошибка: " + e.code));
+    if (perm(me, "roles")) {
+      const sel = h("select", { className: "in" }); sel.append(new Option("Без роли", "")); (cur.roles || []).forEach(x => sel.append(new Option(x.name, x.id))); sel.value = (cur.mr || {})[uid] || "";
+      sel.onchange = () => done(updateDoc(ref, { ["mr." + uid]: sel.value || deleteField() }));
+      items.push(h("label", { textContent: "РОЛЬ" }), sel);
+    }
+    if (perm(me, "mod") && (me === cur.owner || !perm(uid, "mod"))) {
+      const lim = ms => done(updateDoc(ref, { ["to." + uid]: ms ? Date.now() + ms : deleteField() }));
+      items.push(h("div", { className: "sec" }, h("span", { textContent: "МОДЕРАЦИЯ" })),
+        mkBtn("⏱ Таймаут 10 мин", () => lim(6e5)), mkBtn("⏱ Таймаут 1 час", () => lim(36e5)), mkBtn("🔇 Запретить писать", () => lim(3e11)), mkBtn("🔊 Снять ограничение", () => lim(0)),
+        mkBtn("🔨 Забанить", () => confirm("Забанить " + nm + "?") && done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField(), ["bn." + uid]: nm })), "btn red"));
+    }
+  }
+  modal(...items);
+}
+function square(file) {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => { const m = Math.min(i.width, i.height), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(i, (i.width - m) / 2, (i.height - m) / 2, m, m, 0, 0, 128, 128); res(c.toDataURL("image/jpeg", .8)); };
+    i.onerror = rej; i.src = URL.createObjectURL(file);
+  });
+}
+function editProfile() {
+  const u = ucache[user.uid] || {}; let av = u.avatar || null;
+  const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" });
+  const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
+  const f = h("input", { type: "file", accept: "image/*", hidden: true });
+  f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); prev.style.backgroundImage = `url(${av})`; prev.classList.add("img"); } catch { toast("Не удалось обработать фото"); } };
+  const save = mkBtn("Сохранить", async () => {
+    const name = nm.value.trim(); if (!name) return toast("Введите ник");
+    try {
+      await updateProfile(auth.currentUser, { displayName: name }); user = auth.currentUser;
+      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), avatar: av || "" };
+      await setDoc(doc(db, "users", user.uid), data, { merge: true }); ucache[user.uid] = { ...ucache[user.uid], ...data };
+      servers.forEach(x => updateDoc(doc(db, "servers", x.id), { ["names." + user.uid]: name }).catch(() => {}));
+      friends.forEach(x => updateDoc(doc(db, "friends", x.id), { ["names." + user.uid]: name }).catch(() => {}));
+      paintMe(); renderMembers(); redraw && redraw(); closeM(); toast("Профиль обновлён");
+    } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
+  }, "btn full");
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, f, mkBtn("📷 Сменить аватарку", () => f.click()), h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, save);
+}
+function newRole() {
+  const nm = h("input", { className: "in", placeholder: "Название роли", maxLength: 20 }), col = h("input", { type: "color", value: "#5865f2", style: "width:100%;height:40px;margin-top:10px;border:0;background:none" });
+  const cb = (k, t) => { const i = h("input", { type: "checkbox" }); const l = h("label", { style: "display:block;margin-top:10px;font-size:14px;color:var(--txt);font-weight:400" }, i, " " + t); l.k = k; l.i = i; return l; };
+  const c1 = cb("mod", "Банить, запрещать писать, таймаут"), c2 = cb("roles", "Создавать и выдавать роли");
+  const ok = mkBtn("Создать", async () => {
+    const name = nm.value.trim(); if (!name) return toast("Введите название");
+    try { await updateDoc(doc(db, "servers", cur.id), { roles: arrayUnion({ id: Date.now().toString(36), name, color: col.value, perms: [c1, c2].filter(c => c.i.checked).map(c => c.k) }) }); closeM(); toast("Роль создана"); }
+    catch (e) { toast("Ошибка: " + e.code); }
+  }, "btn full");
+  modal(h("h1", { textContent: "Новая роль", style: "font-size:22px" }), nm, col, c1, c2, ok);
+}
+function serverPanel() {
+  if (!cur) return; const me = user.uid, ref = doc(db, "servers", cur.id), n = [];
+  n.push(h("h1", { textContent: cur.name, style: "text-align:center;font-size:22px" }), h("p", { textContent: "Код приглашения: " + cur.id, style: "margin:10px 0 0;word-break:break-all;font-size:13px" }),
+    mkBtn("📋 Копировать код", async () => { try { await navigator.clipboard.writeText(cur.id); toast("Код скопирован"); } catch { toast("Код: " + cur.id); } }));
+  n.push(h("div", { className: "sec" }, h("span", { textContent: "УЧАСТНИКИ" })));
+  Object.entries(cur.names || {}).forEach(([uid, nm]) => n.push(mkBtn(nameOf(uid, nm) + (uid === cur.owner ? " 👑" : ""), () => showProfile(uid, nm))));
+  if (perm(me, "roles")) {
+    n.push(h("div", { className: "sec" }, h("span", { textContent: "РОЛИ (нажмите, чтобы удалить)" })));
+    (cur.roles || []).forEach(r => { const c = h("span", { className: "rl", textContent: r.name + (r.perms.length ? " ⚙" : ""), style: `color:${r.color};border-color:${r.color}` }); c.onclick = async () => { if (!confirm("Удалить роль «" + r.name + "»?")) return; const mr = { ...(cur.mr || {}) }; for (const k in mr) if (mr[k] === r.id) delete mr[k]; await updateDoc(ref, { roles: (cur.roles || []).filter(x => x.id !== r.id), mr }).catch(() => {}); closeM(); }; n.push(c); });
+    n.push(mkBtn("➕ Создать роль", newRole));
+  }
+  const bans = Object.entries(cur.bn || {});
+  if (bans.length && perm(me, "mod")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "БАН-ЛИСТ" }))); bans.forEach(([uid, nm]) => n.push(mkBtn("Разбанить " + nm, () => updateDoc(ref, { ["bn." + uid]: deleteField() }).then(() => { toast("Разбанен"); closeM(); })))); }
+  n.push(h("div", { className: "sec" }, h("span", { textContent: "СЕРВЕР" })));
+  if (cur.owner !== me) n.push(mkBtn("🚪 Покинуть сервер", () => confirm("Покинуть сервер?") && updateDoc(ref, { members: arrayRemove(me) }).then(closeM), "btn red"));
+  else n.push(mkBtn("🗑 Удалить сервер", () => confirm("Удалить сервер навсегда?") && deleteDoc(ref).then(closeM), "btn red"));
+  modal(...n);
+}
+$("menu").onclick = serverPanel;
+
+/* ---------- VOICE ---------- */
+let rec = null, chunks = [], recT;
+$("mic").onclick = async () => {
+  if (rec) { rec.stop(); return; }
+  if (!mpath) return toast("Сначала выберите канал или друга");
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+    rec = new MediaRecorder(st, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 24000 }); chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = async () => {
+      clearTimeout(recT); st.getTracks().forEach(t => t.stop()); $("mic").classList.remove("rec"); $("mic").textContent = "🎤";
+      const blob = new Blob(chunks, { type: rec.mimeType }); rec = null;
+      if (blob.size < 1500) return;
+      if (blob.size > 600000) return toast("Слишком длинное сообщение");
+      const d = await new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(blob); });
+      await send({ text: "", aud: d });
+    };
+    rec.start(); $("mic").classList.add("rec"); $("mic").textContent = "⏹"; toast("Запись… нажмите ⏹, чтобы отправить");
+    recT = setTimeout(() => rec && rec.stop(), 60000);
+  } catch { rec = null; toast("Нет доступа к микрофону"); }
+};
 
 /* ---------- FRIENDS ---------- */
 const pid = (a, b) => [a, b].sort().join("_");
@@ -359,6 +505,7 @@ async function joinServer() {
   try {
     const ref = doc(db, "servers", code), s = await getDoc(ref);
     if (!s.exists()) return toast("Сервер с таким кодом не найден");
+    if (s.data().bn?.[user.uid]) return toast("Вы забанены на этом сервере");
     await updateDoc(ref, { members: arrayUnion(user.uid), ["names." + user.uid]: myName() });
     toast("Вы присоединились к «" + s.data().name + "»"); setTimeout(() => selectServer(code), 500);
   } catch (e) { toast("Ошибка: " + e.code); }
@@ -368,13 +515,6 @@ async function createChannel() {
   const name = (await ask("Создать канал", "Название канала.", "новый-канал") || "").toLowerCase().replace(/\s+/g, "-"); if (!name) return;
   try { await addDoc(collection(db, "servers", cur.id, "channels"), { name, createdAt: serverTimestamp() }); } catch (e) { toast("Ошибка: " + e.code); }
 }
-$("menu").onclick = async () => {
-  if (!cur) return;
-  const act = await ask(cur.name, "Код приглашения: " + cur.id + "\nВведите «копировать», «выйти»" + (cur.owner === user.uid ? " или «удалить»" : "") + ".", "действие");
-  if (act === "копировать") { try { await navigator.clipboard.writeText(cur.id); toast("Код скопирован"); } catch { toast("Код: " + cur.id); } }
-  else if (act === "выйти") { try { const id = cur.id; await updateDoc(doc(db, "servers", id), { members: arrayRemove(user.uid) }); } catch (e) { toast("Ошибка: " + e.code); } }
-  else if (act === "удалить" && cur.owner === user.uid) { try { await deleteDoc(doc(db, "servers", cur.id)); } catch (e) { toast("Ошибка: " + e.code); } }
-};
 $("dp").style.whiteSpace = "pre-line";
 </script>
 </body>
