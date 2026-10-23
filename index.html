@@ -130,7 +130,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 <div class="dlg" id="lbw"><img id="lb" alt="" style="max-width:95vw;max-height:90vh;border-radius:8px"></div>
 <div class="dlg" id="pnl"><div class="card" id="pc" style="max-height:88vh;overflow:auto"></div></div>
 <div class="dlg" id="inc"><div class="card" id="ic" style="text-align:center"></div></div>
-<div id="callui"><video id="rv" autoplay playsinline></video><video id="lv" autoplay playsinline muted></video><div id="cs"></div><div id="cbar"><button id="cmic" aria-label="Микрофон">🎤</button><button id="ccam" aria-label="Камера">📷</button><button id="cend" aria-label="Завершить">📞</button></div></div>
+<div id="callui"><video id="rv" autoplay playsinline></video><video id="lv" autoplay playsinline muted></video><div id="cs"></div><div id="cbar"><button id="cmic" aria-label="Микрофон">🎤</button><button id="ccam" aria-label="Камера">📷</button><button id="cshare" aria-label="Экран">🖥</button><button id="cend" aria-label="Завершить">📞</button></div></div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -443,22 +443,18 @@ async function showProfile(uid, fb) {
   }
   modal(...items);
 }
-function square(file) {
-  return new Promise((res, rej) => {
-    const fr = new FileReader(); fr.onerror = rej;
-    fr.onload = () => {
-      const i = new Image();
-      i.onload = () => { const m = Math.min(i.width, i.height), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(i, (i.width - m) / 2, (i.height - m) / 2, m, m, 0, 0, 128, 128); res(c.toDataURL("image/jpeg", .8)); };
-      i.onerror = rej; i.src = fr.result;
-    };
-    fr.readAsDataURL(file);
-  });
+async function square(file) {
+  const draw = (src, w, ht) => { const m = Math.min(w, ht), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(src, (w - m) / 2, (ht - m) / 2, m, m, 0, 0, 128, 128); return c.toDataURL("image/jpeg", .8); };
+  try { const bm = await createImageBitmap(file); const d = draw(bm, bm.width, bm.height); bm.close && bm.close(); return d; } catch {}
+  return new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => { const i = new Image(); i.onload = () => res(draw(i, i.width, i.height)); i.onerror = rej; i.src = fr.result; }; fr.readAsDataURL(file); });
 }
 function editProfile() {
   const u = ucache[user.uid] || {}; let av = u.avatar || null;
   const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" });
   const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
-  const f = h("input", { type: "file", accept: "image/*", hidden: true });
+  const f = h("input", { type: "file", accept: "image/*", style: "position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer" });
+  const pick = h("label", { textContent: "📷 Выбрать фото", className: "btn g", style: "position:relative;display:inline-block;overflow:hidden;margin:6px 6px 0 0;font-size:15px;text-transform:none;color:var(--txt)" }, f);
+  const clr = mkBtn("Убрать аватарку", () => { av = null; prev.style.backgroundImage = ""; prev.style.background = colorOf(myName()); prev.classList.remove("img"); toast("Нажмите «Сохранить»"); });
   f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { toast("Не удалось обработать фото, выберите JPG или PNG"); } };
   const save = mkBtn("Сохранить", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите ник");
@@ -471,7 +467,7 @@ function editProfile() {
       paintMe(); renderMembers(); redraw && redraw(); closeM(); toast("Профиль обновлён");
     } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
   }, "btn full");
-  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, f, mkBtn("📷 Сменить аватарку", () => f.click()), h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, save);
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, save);
 }
 const PAL = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c", "#3498db", "#5865f2", "#9b59b6", "#e91e63", "#95a5a6"];
 function colorPick(init) {
@@ -582,6 +578,18 @@ function newGroup() {
   }, "btn full");
   modal(h("h1", { textContent: "Новая группа", style: "font-size:22px" }), t, ...boxes, go);
 }
+function addToGroup(f) {
+  const cand = friends.filter(x => x.status === "accepted" && !x.group).map(x => { const u = x.users.find(y => y !== user.uid); return { u, n: x.names[u] }; }).filter(c => !f.users.includes(c.u));
+  const members = h("p", { textContent: "Сейчас в группе: " + Object.values(f.names).join(", "), style: "margin:8px 0 0;font-size:13px" });
+  if (!cand.length) return modal(h("h1", { textContent: f.title, style: "font-size:22px" }), members, h("p", { textContent: "Все ваши друзья уже в этой группе.", style: "margin-top:10px" }));
+  const boxes = cand.map(c => { const i = h("input", { type: "checkbox" }), l = lbl("var(--txt)", i, c.n); l.c = c; l.i = i; return l; });
+  const go = mkBtn("Добавить", async () => {
+    const sel = boxes.filter(b => b.i.checked); if (!sel.length) return toast("Выберите друзей");
+    const up = { users: arrayUnion(...sel.map(b => b.c.u)) }; sel.forEach(b => up["names." + b.c.u] = b.c.n);
+    try { await updateDoc(doc(db, "friends", f.id), up); closeM(); toast("Добавлено"); } catch (e) { toast("Ошибка: " + e.code); }
+  }, "btn full");
+  modal(h("h1", { textContent: "Добавить в «" + f.title + "»", style: "font-size:22px" }), members, ...boxes, go);
+}
 function channelModal(ch) {
   const rs = cur.roles || [], ref = doc(db, "servers", cur.id, "channels", ch.id);
   const boxes = rs.map(r => { const i = h("input", { type: "checkbox", checked: !!ch.roles?.includes(r.id) }), l = lbl(r.color, i, r.name); l.r = r.id; l.i = i; return l; });
@@ -608,7 +616,7 @@ $("srch").onclick = () => {
 // const TURN = { urls: "turn:адрес:порт", username: "логин", credential: "пароль" };
 const TURN = null;
 const ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }, ...(TURN ? [TURN] : [])] };
-let pc = null, callId = null, callName = "", localStream = null, callUnsubs = [], iceQ = [], iceBuf = [], ringT;
+let shareStream = null, pc = null, callId = null, callName = "", localStream = null, callUnsubs = [], iceQ = [], iceBuf = [], ringT;
 const cref = id => doc(db, "calls", id);
 const sendIce = c => { if (!callId) return iceQ.push(c); addDoc(collection(db, "calls", callId, "ice"), { from: user.uid, cand: JSON.stringify(c) }).catch(() => {}); };
 const addCand = async c => { if (pc?.remoteDescription) await pc.addIceCandidate(c).catch(() => {}); else iceBuf.push(c); };
@@ -619,10 +627,15 @@ async function setupMedia(video) {
   $("lv").srcObject = localStream; $("lv").style.display = video ? "block" : "none";
   $("cmic").textContent = "🎤"; $("ccam").textContent = "📷";
 }
-function makePC() {
+function makePC(caller) {
   pc = new RTCPeerConnection(ICE);
   pc.onicecandidate = e => e.candidate && sendIce(e.candidate.toJSON());
-  pc.ontrack = e => { const r = $("rv"); r.srcObject = e.streams[0]; r.classList.toggle("audio", !e.streams[0].getVideoTracks().length); r.play?.().catch(() => {}); };
+  const remote = new MediaStream(), r = $("rv"); r.className = "audio";
+  pc.ontrack = e => {
+    if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
+    r.srcObject = remote; r.play?.().catch(() => {});
+    if (e.track.kind === "video") { const upd = () => r.classList.toggle("audio", e.track.muted); e.track.onmute = upd; e.track.onunmute = upd; upd(); }
+  };
   pc.onconnectionstatechange = () => {
     const st = pc?.connectionState;
     if (st === "connected") $("cs").textContent = callName + " — идёт звонок";
@@ -630,6 +643,24 @@ function makePC() {
     else if (st === "disconnected") setTimeout(() => pc?.connectionState === "disconnected" && endCall(true), 8000);
   };
   localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  if (caller && !localStream.getVideoTracks().length) pc.addTransceiver("video", { direction: "sendrecv" });
+}
+const vSender = () => pc?.getTransceivers().find(x => x.receiver.track.kind === "video")?.sender;
+async function stopShare() {
+  if (!shareStream) return; shareStream.getTracks().forEach(t => t.stop()); shareStream = null;
+  const cam = localStream?.getVideoTracks()[0] || null; await vSender()?.replaceTrack(cam).catch(() => {});
+  $("lv").srcObject = localStream; $("lv").style.display = cam ? "block" : "none"; $("cshare").style.background = "";
+}
+async function shareScreen() {
+  if (!pc) return;
+  if (shareStream) return stopShare();
+  if (!navigator.mediaDevices?.getDisplayMedia) return toast("Показ экрана не работает на телефонах. Включите его в браузере на компьютере");
+  try {
+    shareStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const t = shareStream.getVideoTracks()[0], snd = vSender(); if (!snd) throw new Error("нет видеоканала");
+    await snd.replaceTrack(t); t.onended = stopShare;
+    $("lv").srcObject = shareStream; $("lv").style.display = "block"; $("cshare").style.background = "#23a55a";
+  } catch (e) { shareStream && shareStream.getTracks().forEach(t => t.stop()); shareStream = null; if (e.name !== "NotAllowedError") toast("Не удалось показать экран: " + (e.message || e.name)); }
 }
 const showCall = t => { $("cs").textContent = t; $("callui").classList.add("show"); };
 function watchCall(id) {
@@ -642,6 +673,7 @@ function watchCall(id) {
 }
 function endCall(notify = true) {
   const id = callId; clearTimeout(ringT); callUnsubs.forEach(f => f()); callUnsubs = [];
+  shareStream && shareStream.getTracks().forEach(t => t.stop()); shareStream = null; $("cshare").style.background = "";
   pc && pc.close(); pc = null; localStream && localStream.getTracks().forEach(t => t.stop()); localStream = null;
   callId = null; iceQ = []; iceBuf = []; $("callui").classList.remove("show"); $("rv").srcObject = null; $("lv").srcObject = null;
   if (id && notify) updateDoc(cref(id), { status: "ended" }).catch(() => {});
@@ -653,7 +685,7 @@ async function startCall(video) {
   if (pc) return toast("Вы уже в звонке");
   const to = f.users.find(u => u !== user.uid); callName = f.names[to];
   try {
-    await setupMedia(video); makePC(); showCall(callName + " — вызываем…");
+    await setupMedia(video); makePC(true); showCall(callName + " — вызываем…");
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
     const r = await addDoc(collection(db, "calls"), { from: user.uid, to, fromName: myName(), video, status: "ringing", offer: { type: offer.type, sdp: offer.sdp }, createdAt: serverTimestamp() });
     setCallId(r.id); watchCall(r.id);
@@ -664,7 +696,7 @@ async function acceptCall(c) {
   hideInc(); if (pc) return; callName = c.fromName;
   try {
     await setupMedia(c.video); makePC(); showCall(callName + " — соединяем…");
-    await pc.setRemoteDescription(c.offer); const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
+    await pc.setRemoteDescription(c.offer); pc.getTransceivers().forEach(x => { if (x.receiver.track.kind === "video" && !x.sender.track) x.direction = "sendrecv"; }); const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
     setCallId(c.id); watchCall(c.id);
     await updateDoc(cref(c.id), { answer: { type: ans.type, sdp: ans.sdp }, status: "accepted" });
   } catch (e) { toast("Не удалось ответить: " + mediaErr(e)); endCall(true); }
@@ -687,6 +719,7 @@ function showInc(c) {
 const hideInc = () => $("inc").classList.remove("show");
 $("cmic").onclick = () => { const t = localStream?.getAudioTracks()[0]; if (!t) return; t.enabled = !t.enabled; $("cmic").textContent = t.enabled ? "🎤" : "🔇"; };
 $("ccam").onclick = () => { const t = localStream?.getVideoTracks()[0]; if (!t) return toast("Камера не включена в этом звонке"); t.enabled = !t.enabled; $("ccam").textContent = t.enabled ? "📷" : "🚫"; };
+$("cshare").onclick = shareScreen;
 $("cend").onclick = () => endCall(true);
 $("vcall").onclick = () => startCall(false); $("vvid").onclick = () => startCall(true);
 
@@ -716,7 +749,7 @@ function renderHome() {
   if (inc.length) { c.append(sec("ЗАПРОСЫ — " + inc.length)); inc.forEach(f => row(f, f.names[f.from], [["✓", () => updateDoc(doc(db, "friends", f.id), { status: "accepted" })], ["✗", () => del(f)]])); }
   if (out.length) { c.append(sec("ОТПРАВЛЕНО")); out.forEach(f => row(f, f.names[other(f)] + " (ждёт ответа)", [["✗", () => del(f)]])); }
   const ok = friends.filter(f => f.status === "accepted" && !f.group), gr = friends.filter(f => f.group);
-  if (gr.length) { c.append(sec("ГРУППЫ")); gr.forEach(f => row(f, (unread(f.id, f) && !(mpath && mpath[1] === f.id) ? "● " : "") + "👥 " + f.title, [["💬", () => { markSeen(f.id); openChat(["friends", f.id, "messages"], "👥 " + f.title, "Написать в группу", false, "Начало группового чата. Скажите привет!"); $("app").classList.remove("nav"); renderHome(); }], ["🚪", () => confirm("Выйти из группы?") && updateDoc(doc(db, "friends", f.id), { users: arrayRemove(user.uid) }).then(() => { if (mpath && mpath[1] === f.id) goHome(); })]])); }
+  if (gr.length) { c.append(sec("ГРУППЫ")); gr.forEach(f => row(f, (unread(f.id, f) && !(mpath && mpath[1] === f.id) ? "● " : "") + "👥 " + f.title, [["➕", () => addToGroup(f)], ["💬", () => { markSeen(f.id); openChat(["friends", f.id, "messages"], "👥 " + f.title, "Написать в группу", false, "Начало группового чата. Скажите привет!"); $("app").classList.remove("nav"); renderHome(); }], ["🚪", () => confirm("Выйти из группы?") && updateDoc(doc(db, "friends", f.id), { users: arrayRemove(user.uid) }).then(() => { if (mpath && mpath[1] === f.id) goHome(); })]])); }
   c.append(sec("ДРУЗЬЯ — " + ok.length));
   if (!ok.length) c.append(h("div", { className: "empty", textContent: "Пока никого. Нажмите «Добавить друга»." }));
   ok.forEach(f => { const n = f.names[other(f)]; const b = btn((isOn(other(f)) ? "🟢 " : "⚪ ") + n, () => { markSeen(f.id); openChat(["friends", f.id, "messages"], "@ " + n, "Написать " + n, false, "Это начало вашей переписки. Скажите привет!"); $("app").classList.remove("nav"); renderHome(); }); if (mpath && mpath[1] === f.id) b.classList.add("on"); else if (unread(f.id, f)) b.classList.add("unr"); c.append(b); });
