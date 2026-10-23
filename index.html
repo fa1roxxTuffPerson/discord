@@ -115,7 +115,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
     <div id="msgs"><div class="empty">Создайте сервер или присоединитесь к существующему по коду приглашения.</div></div>
     <div id="ty"></div>
     <div id="rb"></div>
-    <div id="form"><button class="ib" id="att" title="Фото или видео">📎</button><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="mic" title="Голосовое сообщение">🎤</button><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*,video/*" hidden></div>
+    <div id="form"><button class="ib" id="att" title="Фото">📎</button><button class="ib" id="vbtn" title="Видео">🎬</button><input type="file" id="vfile" accept="video/*" hidden><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="mic" title="Голосовое сообщение">🎤</button><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*,video/*" hidden></div>
     <div id="emp"></div>
   </main>
   <aside id="mem"></aside>
@@ -355,6 +355,8 @@ function shrink(file) {
     img.onerror = rej; img.src = URL.createObjectURL(file);
   });
 }
+$("vbtn").onclick = () => mpath ? $("vfile").click() : toast("Сначала выберите канал или друга");
+$("vfile").onchange = () => { const f = $("vfile").files[0]; $("vfile").value = ""; if (f && mpath) sendVideo(f); };
 $("att").onclick = () => mpath ? $("file").click() : toast("Сначала выберите канал или друга");
 $("file").onchange = async () => {
   const f = $("file").files[0]; $("file").value = ""; if (!f || !mpath) return;
