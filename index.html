@@ -100,7 +100,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 .pl button{display:block;width:100%;max-width:360px;text-align:left;margin-top:4px;position:relative;background:var(--bg1);border:0;border-radius:4px;padding:6px 10px;cursor:pointer;overflow:hidden}
 .pl .f{position:absolute;inset:0 auto 0 0;background:rgba(88,101,242,.35)}.pl span{position:relative}.pl .me{outline:1px solid var(--acc)}
 #gv{position:fixed;right:12px;bottom:84px;background:var(--bg2);border:1px solid var(--bg1);border-radius:10px;padding:10px 12px;z-index:40;min-width:210px;display:none;box-shadow:0 4px 16px #0006}
-#gv b{display:block;margin-bottom:6px}#gv .pp{font-size:14px;padding:2px 0}#gv .ib{margin-right:4px}
+#gv b{display:block;margin-bottom:6px}#gv .pp{font-size:14px;padding:5px 6px;margin:2px 0;border-radius:6px}#gv .ib{margin-right:4px}#gv{max-width:min(340px,calc(100vw - 24px));max-height:70vh;overflow:auto}#gv .vcontrols{display:flex;flex-wrap:wrap;gap:3px;border-bottom:1px solid var(--bg1);padding-bottom:6px;margin-bottom:6px}#gv .vdevices{display:grid;gap:5px;margin:6px 0}.vsetting{display:grid;gap:3px;font-size:11px;color:var(--mut)}.vsetting select{font-size:12px;padding:5px;max-width:100%}.vvol{margin:2px 0 0 18px}.vvol small{color:var(--mut)}#gv .speaking{outline:2px solid var(--grn);background:rgba(35,165,90,.14)}
 .sysm{text-align:center;color:var(--mut);font-size:13px;margin:8px 0;padding:0 12px}
 </style>
 </head>
@@ -131,7 +131,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
     <div id="msgs"><div class="empty">Создайте сервер или присоединитесь к существующему по коду приглашения.</div></div>
     <div id="ty"></div>
     <div id="rb"></div>
-    <div id="form"><button class="ib" id="att" title="Фото">📎</button><button class="ib" id="vbtn" title="Видео">🎬</button><input type="file" id="vfile" accept="video/*" hidden><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="mic" title="Голосовое сообщение">🎤</button><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*,video/*" hidden></div>
+    <div id="form"><button class="ib" id="att" title="Фото">📎</button><button class="ib" id="vbtn" title="Видео">🎬</button><input type="file" id="vfile" accept="video/*" hidden><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="mic" title="Голосовое сообщение">🎤</button><button class="ib" id="emo" title="Эмодзи">😀</button><button class="ib" id="gif" title="Поиск GIF">GIF</button><input type="file" id="file" accept="image/*,video/*" hidden></div>
     <div id="emp"></div>
   </main>
   <aside id="mem"></aside>
@@ -262,8 +262,9 @@ function renderChans() {
   const c = $("chs"); c.replaceChildren();
   if (!cur) return;
   const add = h("button", { textContent: "+", title: "Создать канал" }); add.onclick = createChannel;
-  c.append(h("div", { className: "sec" }, h("span", { textContent: "ТЕКСТОВЫЕ КАНАЛЫ" }), add));
-  chans.forEach(ch => { const b = h("button", { className: "ch" + (curCh === ch.id ? " on" : "") + (curCh !== ch.id && unread(ch.id, ch) ? " unr" : ""), textContent: (ch.roles?.length ? "🔒 " : "# ") + ch.name }); b.onclick = () => selectChannel(ch.id); c.append(b); });
+  c.append(h("div", { className: "sec" }, h("span", { textContent: "КАНАЛЫ" }), add));
+  const groups = new Map(); chans.filter(ch => ch.type !== "voice").forEach(ch => { const k = ch.category || "Без категории"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(ch); });
+  groups.forEach((items, category) => { if (groups.size > 1 || category !== "Без категории") c.append(h("div", { className: "sec", style: "padding-top:10px", textContent: "⌄ " + category.toUpperCase() })); items.forEach(ch => { const b = h("button", { className: "ch" + (curCh === ch.id ? " on" : "") + (curCh !== ch.id && unread(ch.id, ch) ? " unr" : ""), textContent: (ch.roles?.length ? "🔒 " : "# ") + ch.name }); b.onclick = () => selectChannel(ch.id); c.append(b); }); });
 }
 function renderMembers() {
   const m = $("mem"); m.replaceChildren();
@@ -346,11 +347,13 @@ function openChat(path, title, ph, admin, emptyText) {
       const first = !prev || prev.uid !== m.uid || secs - (prev.createdAt?.seconds || secs) > 420;
       const body = h("div", { className: "b" });
       if (first) { const w = h("span", { className: "who", textContent: nm, style: "color:" + (srv ? nameColor(m.uid, nm) : colorOf(nm)) }); w.onclick = () => showProfile(m.uid, nm); body.append(h("div", {}, w, h("span", { className: "ts", textContent: fmt(m.createdAt) }))); }
+      if (m.forwarded) body.append(h("div", { className: "ts", textContent: "↪ Переслано от " + (m.forwardedFrom || "пользователя") }));
       if (m.pin) body.append(h("div", { className: "ts", textContent: "📌 закреплено" }));
       if (m.re) { const q = h("div", { className: "qt", textContent: "↩ " + m.re.name + ": " + m.re.text }); q.onclick = e => { e.stopPropagation(); const t = [...$("msgs").children].find(x => x.dataset.id === m.re.id); if (!t) return toast("Исходное сообщение далеко или удалено"); t.scrollIntoView({ block: "center", behavior: "smooth" }); t.classList.add("flash"); setTimeout(() => t.classList.remove("flash"), 1500); }; body.append(q); }
       if (m.text) { const rt = rich(m.text, mnames); if (rt.mine && m.uid !== user.uid) mine = true; body.append(h("div", { className: "t" }, rt.frag, m.edited ? h("span", { className: "ts", textContent: " (изменено)" }) : "")); }
       if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото", loading: "lazy", decoding: "async" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
       if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
+      if (m.file?.data) { const a = h("a", { href: m.file.data, download: m.file.name || "attachment", textContent: "📎 " + (m.file.name || "Файл") + " · " + (m.file.size / 1024).toFixed(1) + " КБ", style: "display:inline-block;margin-top:5px;color:#00a8fc;overflow-wrap:anywhere" }); body.append(a); }
       if (m.vid) {
         if (vcache[m.id]) body.append(h("video", { src: vcache[m.id], controls: true, playsInline: true, className: "pic", style: "cursor:default;max-height:360px;background:#000" }));
         else { const b = h("button", { className: "btn g", textContent: "▶ Видео, " + (m.vid.size / 1048576).toFixed(1) + " МБ. Нажмите, чтобы загрузить", style: "margin-top:4px;text-align:left" }); b.onclick = () => loadVideo(path, m, b); body.append(b); }
@@ -363,6 +366,7 @@ function openChat(path, title, ph, admin, emptyText) {
       const acts = h("div", { className: "acts" }), act = (t, fn, ti) => { const b = h("button", { textContent: t, title: ti || "" }); b.onclick = ev => { ev.stopPropagation(); fn(); }; acts.append(b); };
       ["👍", "❤️", "😂", "🔥", "😮"].forEach(e => act(e, () => react(path, m, e)));
       act("↩", () => setReply(m, nm), "Ответить");
+      act("➡️", () => forwardMessage(m), "Переслать");
       if (m.uid === user.uid && m.text) act("✏", () => setEdit(m), "Изменить");
       if (!srv || perm(user.uid, "mod") || canDelAll) act(m.pin ? "📍" : "📌", () => updateDoc(doc(db, ...path, m.id), { pin: !m.pin }).catch(x => toast("Ошибка: " + x.code)), m.pin ? "Открепить" : "Закрепить");
       if (m.uid === user.uid || canDelAll) act("🗑", async () => { if (m.vid) for (let i = 0; i < m.vid.n; i++) await deleteDoc(doc(db, ...path, m.id, "chunks", "" + i)).catch(() => {}); deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); }, "Удалить");
@@ -378,7 +382,7 @@ function openChat(path, title, ph, admin, emptyText) {
     if (mpath !== path) return;
     const old = new Set(list.map(m => m.id)), had = list.length > 0;
     list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); curList = list;
-    if (had && document.hidden && "Notification" in window && Notification.permission === "granted" && ucache[user.uid]?.status !== "dnd") list.filter(m => !old.has(m.id) && m.uid !== user.uid && m.createdAt).slice(-3).forEach(m => { try { new Notification(nameOf(m.uid, m.name) + " · " + title, { body: (m.text || "📎 Вложение").slice(0, 100), icon: "icon-192.png" }); } catch {} });
+    if (had && document.hidden && "Notification" in window && Notification.permission === "granted" && ucache[user.uid]?.status !== "dnd") list.filter(m => !old.has(m.id) && m.uid !== user.uid && m.createdAt).slice(-3).forEach(async m => { try { const opts = { body: (m.text || (m.img ? "📷 Фото" : m.vid ? "🎬 Видео" : m.file ? "📎 " + m.file.name : "📎 Вложение")).slice(0, 100), icon: "icon-192.png", tag: "msg-" + m.id, data: { url: location.href } }; const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.ready : null; if (reg?.showNotification) await reg.showNotification(nameOf(m.uid, m.name) + " · " + title, opts); else new Notification(nameOf(m.uid, m.name) + " · " + title, opts); } catch {} });
     draw(); markSeen(key); refreshDots();
   }, e => toast("Ошибка чтения: " + e.code));
   };
@@ -397,6 +401,22 @@ async function send(data) {
     return true;
   }
   catch (er) { toast("Не отправлено: " + er.code); return false; }
+}
+async function forwardMessage(m) {
+  const targets = [];
+  friends.filter(f => f.status === "accepted").forEach(f => targets.push({ label: (f.group ? "👥 " + (f.title || "Группа") : "@ " + (f.names?.[f.users.find(u => u !== user.uid)] || "Друг")), path: ["friends", f.id, "messages"] }));
+  for (const s of servers) { try { const snap = await getDocs(collection(db, "servers", s.id, "channels")); snap.docs.forEach(d => { const c = d.data(); if (c.type !== "voice") targets.push({ label: "# " + (s.name || "Сервер") + " / " + c.name, path: ["servers", s.id, "channels", d.id, "messages"] }); }); } catch {} }
+  if (!targets.length) return toast("Нет доступных чатов для пересылки");
+  const title = h("h1", { textContent: "Переслать сообщение", style: "text-align:center;font-size:22px" });
+  const preview = h("p", { textContent: (m.text || (m.img ? "📷 Фото" : m.vid ? "🎬 Видео" : m.aud ? "🎤 Голосовое" : m.file ? "📎 " + m.file.name : "Вложение")).slice(0, 180), style: "margin:8px 0;overflow-wrap:anywhere" });
+  const list = h("div", { style: "max-height:55vh;overflow:auto" });
+  targets.slice(0, 100).forEach(t => list.append(mkBtn(t.label, async () => {
+    const payload = { text: m.text || "", forwarded: true, forwardedFrom: nameOf(m.uid, m.name) };
+    if (m.img) payload.img = m.img; if (m.aud) payload.aud = m.aud; if (m.file) payload.file = m.file;
+    if (m.vid) return toast("Пересылка видео пока не поддерживается");
+    try { await addDoc(collection(db, ...t.path), { ...payload, uid: user.uid, name: myName(), createdAt: serverTimestamp() }); closeM(); toast("Сообщение переслано"); } catch (e) { toast("Не удалось переслать: " + e.code); }
+  }, "btn g")));
+  modal(title, preview, list);
 }
 const acp = h("div", { id: "acp" }); document.body.append(acp);
 let acItems = [], acIdx = 0, acTok = null;
@@ -446,10 +466,13 @@ function shrink(file) {
 $("vbtn").onclick = () => mpath ? $("vfile").click() : toast("Сначала выберите канал или друга");
 $("vfile").onchange = () => { const f = $("vfile").files[0]; $("vfile").value = ""; if (f && mpath) sendVideo(f); };
 $("att").onclick = () => mpath ? $("file").click() : toast("Сначала выберите канал или друга");
+$("file").accept = "image/*,video/*,application/pdf,text/plain,.doc,.docx,.zip,.json,.txt";
 $("file").onchange = async () => {
   const f = $("file").files[0]; $("file").value = ""; if (!f || !mpath) return;
   if (f.type.startsWith("video/")) return sendVideo(f);
-  try { toast("Отправка фото…"); await send({ text: "", img: await shrink(f) }); } catch { toast("Не удалось обработать фото"); }
+  if (f.type.startsWith("image/")) { try { toast("Отправка фото…"); await send({ text: "", img: await shrink(f) }); } catch { toast("Не удалось обработать фото"); } return; }
+  if (f.size > 450000) return toast("Файл больше 450 КБ. Для больших файлов нужна Firebase Storage");
+  try { const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f); }); toast("Отправка файла…"); await send({ text: "", file: { name: f.name, type: f.type || "application/octet-stream", size: f.size, data } }); } catch { toast("Не удалось прочитать файл"); }
 };
 async function sendVideo(f) {
   if (f.size > 20e6) return toast("Видео больше 20 МБ. Обрежьте или сожмите его");
@@ -476,6 +499,14 @@ async function loadVideo(path, m, btn) {
 $("lbw").onclick = () => $("lbw").classList.remove("show");
 "😀😂😍🥰😎🤔😭😡👍👎🙏🔥❤️🎉💀👀😴🤝✨💯🎮🍕☕🌙".match(/\p{Extended_Pictographic}\uFE0F?/gu).forEach(em => { const b = h("button", { textContent: em }); b.onclick = () => { $("inp").value += em; $("inp").focus(); }; $("emp").append(b); });
 $("emo").onclick = () => $("emp").classList.toggle("show");
+$("gif").onclick = () => {
+  if (!mpath) return toast("Сначала выберите чат");
+  const q = h("input", { className: "in", placeholder: "Например: funny cat GIF", maxLength: 80 });
+  const search = mkBtn("🔎 Найти GIF на GIPHY", () => { const term = q.value.trim(); if (!term) return toast("Введите запрос"); window.open("https://giphy.com/search/" + encodeURIComponent(term), "_blank", "noopener,noreferrer"); }, "btn");
+  const url = h("input", { className: "in", placeholder: "Вставьте прямую HTTPS-ссылку на GIF" });
+  const sendGif = mkBtn("Отправить GIF", async () => { const u = url.value.trim(); if (!/^https:\/\//i.test(u)) return toast("Нужна HTTPS-ссылка на GIF"); try { const ok = await send({ text: "", img: u, gif: true }); if (ok) closeM(); } catch { toast("Не удалось отправить GIF"); } }, "btn full");
+  modal(h("h1", { textContent: "GIF-поиск", style: "text-align:center;font-size:22px" }), h("p", { textContent: "Найди GIF, скопируй прямую ссылку на изображение и вставь её ниже. Внешний поиск открывается в новой вкладке.", style: "margin:8px 0" }), q, search, h("label", { textContent: "ССЫЛКА НА GIF" }), url, sendGif);
+};
 
 /* ---------- PROFILES / ROLES / MODERATION ---------- */
 function getUser(uid) {
@@ -497,7 +528,7 @@ function modal(...nodes) {
   const x = h("button", { className: "btn g", textContent: "Закрыть" }); x.onclick = closeM;
   $("pc").replaceChildren(...nodes, h("div", { className: "row" }, x)); $("pnl").classList.add("show");
 }
-const closeM = () => { $("pnl").classList.remove("show"); document.querySelectorAll("input[data-avf]").forEach(x => x.remove()); };
+const closeM = () => { $("pnl").classList.remove("show"); document.querySelectorAll("input[data-avf]").forEach(x => x.remove()); document.querySelectorAll("input[type=file]").forEach(x => { if (x.style.position === "fixed" && x.id !== "file" && x.id !== "vfile") x.remove(); }); };
 $("pnl").onclick = e => e.target === $("pnl") && closeM();
 const mkBtn = (t, fn, cls = "btn g") => { const b = h("button", { className: cls, textContent: t, style: "margin:6px 6px 0 0" }); b.onclick = fn; return b; };
 
@@ -507,6 +538,8 @@ async function showProfile(uid, fb) {
   const nm = u.name || fb || "Пользователь", me = user.uid, items = [];
   const a = avatar(nm, uid); Object.assign(a.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
   items.push(a, h("h1", { textContent: nm, style: "text-align:center;font-size:22px" }));
+  if (u.banner) items.push(h("img", { src: u.banner, alt: "Баннер профиля", style: "width:100%;max-height:150px;object-fit:cover;border-radius:8px;margin:8px 0" }));
+  if (u.statusText) items.push(h("p", { textContent: "💬 " + u.statusText, style: "margin:6px 0 0;overflow-wrap:anywhere" }));
   if (u.bio) items.push(h("p", { textContent: u.bio, style: "margin:6px 0 0" }));
   if (uid !== me) items.push(h("p", { textContent: isOn(uid) ? (u.status === "dnd" ? "🔴 Не беспокоить" : "🟢 В сети") : u.lastSeen && u.status !== "invisible" ? "⚪ Был(а) в сети " + new Date(ms(u.lastSeen)).toLocaleString("ru", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "", style: "margin:6px 0 0;font-size:13px" }));
   const r = cur && cur.members?.includes(uid) ? roleOf(uid) : null;
@@ -537,12 +570,16 @@ async function square(file) {
   return new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => { const i = new Image(); i.onload = () => res(draw(i, i.width, i.height)); i.onerror = rej; i.src = fr.result; }; fr.readAsDataURL(file); });
 }
 function editProfile() {
-  const u = ucache[user.uid] || {}; let av = u.avatar || null;
-  const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" });
+  const u = ucache[user.uid] || {}; let av = u.avatar || null, banner = u.banner || "";
+  const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" }), statusText = h("input", { className: "in", value: u.statusText || "", maxLength: 60, placeholder: "Например: играю в Gorilla Tag" });
   const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
   const f = h("input", { type: "file", accept: "image/*", "data-avf": "1", style: "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0" });
   f.setAttribute("data-avf", "1"); document.body.append(f);
   const pick = mkBtn("📷 Выбрать фото", () => f.click());
+  const bf = h("input", { type: "file", accept: "image/*", style: "position:fixed;left:-9999px;opacity:0" }); document.body.append(bf);
+  const bp = mkBtn("🖼 Выбрать баннер", () => bf.click());
+  const bprev = h("img", { src: banner, alt: "Предпросмотр баннера", style: "display:" + (banner ? "block" : "none") + ";width:100%;max-height:100px;object-fit:cover;border-radius:6px;margin-top:8px" });
+  bf.onchange = async () => { const file = bf.files[0]; if (!file) return; try { banner = await shrink(file); bprev.src = banner; bprev.style.display = "block"; toast("Баннер выбран — нажмите «Сохранить»"); } catch { toast("Не удалось обработать баннер"); } bf.value = ""; };
   const clr = mkBtn("Убрать аватарку", () => { av = null; prev.style.backgroundImage = ""; prev.style.background = colorOf(myName()); prev.classList.remove("img"); toast("Нажмите «Сохранить»"); });
   f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); f.value = ""; prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { f.value = ""; toast("Не удалось обработать фото, выберите JPG или PNG"); } };
   const sel = (opts, val) => { const e = h("select", { className: "in" }); opts.forEach(([v, t]) => e.append(h("option", { value: v, textContent: t }))); e.value = val; return e; };
@@ -553,7 +590,7 @@ function editProfile() {
   const save = mkBtn("Сохранить", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите ник");
     try {
-      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), avatar: av || "", status: st.value };
+      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), statusText: statusText.value.trim(), banner: banner || "", avatar: av || "", status: st.value };
       await setDoc(doc(db, "users", user.uid), data, { merge: true }); ucache[user.uid] = { ...ucache[user.uid], ...data };
       try { await updateProfile(auth.currentUser, { displayName: name }); } catch {} user = auth.currentUser;
       servers.forEach(x => updateDoc(doc(db, "servers", x.id), { ["names." + user.uid]: name }).catch(() => {}));
@@ -561,7 +598,7 @@ function editProfile() {
       paintMe(); renderMembers(); redraw && redraw(); if (home) renderHome(); closeM(); toast("Профиль обновлён");
     } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
   }, "btn full");
-  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "СТАТУС" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, nt, save);
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, bp, bprev, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "ТЕКСТОВЫЙ СТАТУС" }), statusText, h("label", { textContent: "СТАТУС В СЕТИ" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, nt, save);
 }
 const PAL = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c", "#3498db", "#5865f2", "#9b59b6", "#e91e63", "#95a5a6"];
 function colorPick(init) {
@@ -943,26 +980,99 @@ function invitePanel() {
 let vc = null, vw = null;
 const gv = h("div", { id: "gv" }); document.body.append(gv);
 const vlive = d => Date.now() - (d.hb || d.t || 0) < 90000;
-const vsig = (to, type, data) => addDoc(collection(db, "servers", vc.sid, "voice", to, "sig"), { from: user.uid, type, data: JSON.stringify(data) }).catch(() => {});
-function vclose(uid) { const p = vc?.peers[uid]; if (!p) return; p.pc.close(); if (p.el) p.el.srcObject = null; delete vc.peers[uid]; }
+const vsig = (to, type, data) => vc ? addDoc(collection(db, "servers", vc.sid, "voice", to, "sig"), { from: user.uid, type, data: JSON.stringify(data) }).catch(() => {}) : Promise.resolve();
+function vclose(uid) { const p = vc?.peers[uid]; if (!p) return; try { p.pc.close(); } catch {} if (p.el) { p.el.srcObject = null; p.el.remove(); } if (p.video) p.video.remove(); if (p.audioCtx) p.audioCtx.close().catch(() => {}); if (p.raf) cancelAnimationFrame(p.raf); delete vc.peers[uid]; }
+function vsignalOffer(uid, p) { if (!vc || !p || p.pc.signalingState !== "stable") return; p.pc.createOffer().then(o => p.pc.setLocalDescription(o)).then(() => vsig(uid, "offer", { type: p.pc.localDescription.type, sdp: p.pc.localDescription.sdp })).catch(() => {}); }
 function vpeer(uid) {
-  vclose(uid); const pc = new RTCPeerConnection(ICE), p = { pc, buf: [], el: null }; vc.peers[uid] = p;
-  vc.stream.getTracks().forEach(t => pc.addTrack(t, vc.stream));
+  vclose(uid); const pc = new RTCPeerConnection(ICE), p = { pc, buf: [], el: null, video: null, volume: Number(LS.get("voicevol_" + uid) || 1), speaking: false }; vc.peers[uid] = p;
+  vc.stream.getTracks().forEach(t => { p.audioSender = t.kind === "audio" ? pc.addTrack(t, vc.stream) : p.audioSender; });
+  if (vc.shareStream) p.screenSender = pc.addTrack(vc.shareStream.getVideoTracks()[0], vc.shareStream);
   pc.onicecandidate = e => e.candidate && vsig(uid, "ice", e.candidate.toJSON());
-  pc.ontrack = e => { if (!p.el) { p.el = new Audio(); p.el.autoplay = true; } p.el.srcObject = e.streams[0]; p.el.play?.().catch(() => {}); };
-  pc.onconnectionstatechange = () => pc.connectionState === "failed" && toast("Нет соединения с участником голосового канала (возможно, нужен TURN)");
+  pc.ontrack = e => {
+    const stream = e.streams[0] || new MediaStream([e.track]);
+    if (e.track.kind === "audio") {
+      if (!p.el) { p.el = new Audio(); p.el.autoplay = true; p.el.dataset.voiceUid = uid; p.el.volume = p.volume; p.el.style.display = "none"; document.body.append(p.el); }
+      p.el.srcObject = stream; p.el.muted = !!vc?.deafened; p.el.volume = p.volume; if (vc?.outputDevice && p.el.setSinkId) p.el.setSinkId(vc.outputDevice).catch(() => {}); p.el.play?.().catch(() => {}); vwatchSpeaker(uid, p, stream);
+    } else if (e.track.kind === "video") {
+      if (!p.video) { p.video = h("video", { className: "vscreen", autoplay: true, playsInline: true, controls: true, style: "width:100%;max-height:180px;background:#000;border-radius:6px;margin-top:5px" }); p.video.muted = true; }
+      p.video.srcObject = stream; p.video.style.display = "block"; p.trackEnd = () => { if (p.video) { p.video.srcObject = null; p.video.style.display = "none"; } }; e.track.addEventListener("ended", p.trackEnd, { once: true });
+      const row = gv.querySelector('[data-vuid="' + CSS.escape(uid) + '"]'); if (row && !row.querySelector("video")) row.append(p.video);
+    }
+  };
+  pc.onconnectionstatechange = () => pc.connectionState === "failed" && toast("Нет соединения с участником (возможно, нужен TURN)");
   return p;
 }
+function vwatchSpeaker(uid, p, stream) {
+  try {
+    if (!window.AudioContext || p.audioCtx) return;
+    const ctx = new AudioContext(), analyser = ctx.createAnalyser(); analyser.fftSize = 256;
+    const src = ctx.createMediaStreamSource(stream); src.connect(analyser); const data = new Uint8Array(analyser.frequencyBinCount); p.audioCtx = ctx;
+    const tick = () => { if (!vc || vc.peers[uid] !== p || ctx.state === "closed") return; analyser.getByteFrequencyData(data); const avg = data.reduce((a,b)=>a+b,0)/data.length; const now = avg > 18; if (now !== p.speaking) { p.speaking = now; const row = gv.querySelector('[data-vuid="' + CSS.escape(uid) + '"]'); if (row) row.classList.toggle("speaking", now); } p.raf = requestAnimationFrame(tick); }; tick();
+  } catch {}
+}
 const vflush = async p => { for (const c of p.buf.splice(0)) await p.pc.addIceCandidate(c).catch(() => {}); };
+function vselect(label, value, options) { const wrap = h("label", { className: "vsetting", textContent: label }); const s = h("select", { className: "in" }); options.forEach(o => s.append(h("option", { value: o.value, textContent: o.label }))); s.value = value; wrap.append(s); return { wrap, select: s }; }
+async function vdevices() {
+  if (!navigator.mediaDevices?.enumerateDevices) return;
+  try {
+    const dev = await navigator.mediaDevices.enumerateDevices();
+    const mic = gv.querySelector("#vmicdev"), out = gv.querySelector("#voutdev");
+    if (mic) { const old = mic.value; mic.replaceChildren(...dev.filter(d => d.kind === "audioinput").map(d => h("option", { value: d.deviceId, textContent: d.label || "Микрофон" }))); if ([...mic.options].some(o => o.value === old)) mic.value = old; }
+    if (out) { const old = out.value; out.replaceChildren(h("option", { value: "default", textContent: "Вывод по умолчанию" }), ...dev.filter(d => d.kind === "audiooutput").map(d => h("option", { value: d.deviceId, textContent: d.label || "Динамик" }))); if ([...out.options].some(o => o.value === old)) out.value = old; }
+  } catch {}
+}
 function vrender() {
-  if (!vc) return; const mic = h("button", { className: "ib", textContent: vc.stream.getAudioTracks()[0]?.enabled ? "🎤" : "🔇", title: "Микрофон" }), out = h("button", { className: "ib", textContent: "📵", title: "Выйти из голосового канала" });
-  mic.onclick = () => { const t = vc.stream.getAudioTracks()[0]; t.enabled = !t.enabled; vrender(); }; out.onclick = leaveVoice;
-  gv.replaceChildren(h("b", { textContent: "🔊 Голосовой канал" }), ...vc.parts.map(d => h("div", { className: "pp", textContent: "● " + (d.name || "?") + (d.id === user.uid ? " (вы)" : "") })), h("div", { style: "margin-top:6px" }, mic, out)); gv.style.display = "block";
+  if (!vc) return;
+  const v = vc;
+  const mic = h("button", { className: "ib", textContent: v.stream.getAudioTracks()[0]?.enabled ? "🎤 Микрофон" : "🔇 Микрофон выкл.", title: "Включить/выключить микрофон" });
+  const deaf = h("button", { className: "ib", textContent: v.deafened ? "🔇 Звук выкл." : "🔊 Звук вкл.", title: "Отключить/включить звук участников" });
+  const share = h("button", { className: "ib", textContent: v.shareStream ? "⏹ Остановить экран" : "🖥 Показать экран", title: "Поделиться экраном с участниками" });
+  const out = h("button", { className: "ib", textContent: "📵 Выйти", title: "Выйти из голосового канала" });
+  mic.onclick = () => { const t = vc?.stream.getAudioTracks()[0]; if (t) t.enabled = !t.enabled; vrender(); };
+  deaf.onclick = () => { if (!vc) return; vc.deafened = !vc.deafened; Object.values(vc.peers).forEach(p => { if (p.el) p.el.muted = vc.deafened; }); vrender(); };
+  share.onclick = shareGroupScreen; out.onclick = leaveVoice;
+  const header = h("b", { textContent: "🔊 Голосовой канал" });
+  const devices = h("div", { className: "vdevices" }, h("label", { className: "vsetting", textContent: "Микрофон" }, h("select", { id: "vmicdev", className: "in" })), h("label", { className: "vsetting", textContent: "Вывод звука" }, h("select", { id: "voutdev", className: "in" })));
+  const people = h("div", { id: "vpeople" });
+  v.parts.forEach(d => {
+    const p = v.peers[d.id], row = h("div", { className: "pp" + (p?.speaking ? " speaking" : ""), "data-vuid": d.id });
+    row.append(h("span", { textContent: "● " + (d.name || "Участник") + (d.id === user.uid ? " (вы)" : "") }));
+    if (d.id !== user.uid && p) {
+      const vol = h("input", { type: "range", min: "0", max: "1", step: ".05", value: String(p.volume), title: "Громкость участника", style: "width:100%" });
+      vol.oninput = () => { p.volume = Number(vol.value); if (p.el) p.el.volume = p.volume; LS.set("voicevol_" + d.id, p.volume); };
+      row.append(h("div", { className: "vvol" }, h("small", { textContent: "Громкость" }), vol));
+    }
+    if (p?.video) row.append(p.video); people.append(row);
+  });
+  gv.replaceChildren(header, h("div", { className: "vcontrols" }, mic, deaf, share, out), devices, people); gv.style.display = "block";
+  vdevices();
+  const md = gv.querySelector("#vmicdev"); md.onchange = async () => {
+    try { const ns = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: md.value }, echoCancellation: true, noiseSuppression: true } }); const nt = ns.getAudioTracks()[0], old = vc.stream.getAudioTracks()[0];
+      for (const p of Object.values(vc.peers)) { const snd = p.pc.getSenders().find(x => x.track?.kind === "audio"); if (snd) await snd.replaceTrack(nt); }
+      if (old) { vc.stream.removeTrack(old); old.stop(); } vc.stream.addTrack(nt); toast("Микрофон изменён");
+    } catch (e) { toast("Не удалось сменить микрофон: " + (e.message || e.name)); }
+  };
+  const od = gv.querySelector("#voutdev"); od.value = vc.outputDevice || "default"; od.onchange = async () => { if (vc) vc.outputDevice = od.value; for (const p of Object.values(vc?.peers || {})) if (p.el && p.el.setSinkId) await p.el.setSinkId(od.value).catch(() => {}); };
+}
+async function shareGroupScreen() {
+  if (!vc) return;
+  if (vc.shareStream) {
+    const old = vc.shareStream; vc.shareStream = null; old.getTracks().forEach(t => t.stop());
+    for (const [uid,p] of Object.entries(vc.peers)) { if (p.screenSender) { try { p.pc.removeTrack(p.screenSender); } catch {} p.screenSender = null; vsignalOffer(uid,p); } }
+    vrender(); return;
+  }
+  if (!navigator.mediaDevices?.getDisplayMedia) return toast("Показ экрана доступен не во всех браузерах. Попробуйте компьютер и HTTPS.");
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: false }); vc.shareStream = stream;
+    const track = stream.getVideoTracks()[0]; track.onended = () => { if (vc?.shareStream === stream) shareGroupScreen(); };
+    for (const [uid,p] of Object.entries(vc.peers)) { p.screenSender = p.pc.addTrack(track, stream); vsignalOffer(uid,p); }
+    toast("Показ экрана отправляется участникам"); vrender();
+  } catch (e) { if (e.name !== "NotAllowedError") toast("Не удалось показать экран: " + (e.message || e.name)); }
 }
 async function joinVoice(sid) {
   if (vc) return toast("Вы уже в голосовом канале"); if (pc) return toast("Сначала завершите личный звонок");
   let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch (e) { return toast("Нет доступа к микрофону: " + mediaErr(e)); }
-  const t = Date.now(), mine = doc(db, "servers", sid, "voice", user.uid); vc = { sid, t, stream, peers: {}, unsubs: [], parts: [], hb: null };
+  const t = Date.now(), mine = doc(db, "servers", sid, "voice", user.uid); vc = { sid, t, stream, peers: {}, unsubs: [], parts: [], hb: null, deafened: false, shareStream: null };
   try {
     await setDoc(mine, { name: myName(), t, hb: t });
     const old = await getDocs(collection(db, "servers", sid, "voice", user.uid, "sig")); old.docs.forEach(d => deleteDoc(d.ref).catch(() => {}));
@@ -974,7 +1084,7 @@ async function joinVoice(sid) {
   } catch (e) { stream.getTracks().forEach(x => x.stop()); vc = null; return toast("Ошибка: " + e.code); }
   vc.hb = setInterval(() => updateDoc(mine, { hb: Date.now() }).catch(() => {}), 25000);
   vc.unsubs.push(onSnapshot(collection(db, "servers", sid, "voice"), snap => {
-    if (!vc) return; const live = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(vlive); vc.parts = live; vrender();
+    if (!vc || vc.sid !== sid) return; const live = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(vlive); vc.parts = live; vrender();
     const ids = new Set(live.map(x => x.id)); Object.keys(vc.peers).forEach(u => !ids.has(u) && vclose(u));
     live.forEach(async d => {
       if (d.id === user.uid || vc?.peers[d.id]) return;
@@ -982,10 +1092,10 @@ async function joinVoice(sid) {
     });
   }, e => toast("Голос: " + e.code)));
   vc.unsubs.push(onSnapshot(collection(db, "servers", sid, "voice", user.uid, "sig"), snap => snap.docChanges().forEach(async ch => {
-    if (ch.type !== "added") return; const d = ch.doc.data(); deleteDoc(ch.doc.ref).catch(() => {}); if (!vc) return;
+    if (ch.type !== "added") return; const d = ch.doc.data(); deleteDoc(ch.doc.ref).catch(() => {}); if (!vc || vc.sid !== sid) return;
     try {
       const data = JSON.parse(d.data);
-      if (d.type === "offer") { const p = vpeer(d.from); await p.pc.setRemoteDescription(data); await vflush(p); const a = await p.pc.createAnswer(); await p.pc.setLocalDescription(a); vsig(d.from, "answer", { type: a.type, sdp: a.sdp }); }
+      if (d.type === "offer") { let p = vc.peers[d.from]; if (!p) p = vpeer(d.from); await p.pc.setRemoteDescription(data); await vflush(p); const a = await p.pc.createAnswer(); await p.pc.setLocalDescription(a); vsig(d.from, "answer", { type: a.type, sdp: a.sdp }); }
       else { const p = vc.peers[d.from]; if (!p) return; if (d.type === "answer") { await p.pc.setRemoteDescription(data).catch(() => {}); await vflush(p); } else if (p.pc.remoteDescription) await p.pc.addIceCandidate(data).catch(() => {}); else p.buf.push(data); }
     } catch {}
   })));
@@ -993,8 +1103,9 @@ async function joinVoice(sid) {
 }
 function leaveVoice() {
   const v = vc; if (!v) return; vc = null; clearInterval(v.hb);
+  if (v.shareStream) v.shareStream.getTracks().forEach(t => t.stop());
   if (v.msg && !v.parts.some(d => d.id !== user.uid && vlive(d))) updateDoc(v.msg, { text: "🔊 Голосовой звонок завершён · " + callFmt(Date.now() - v.t) }).catch(() => {}); v.unsubs.forEach(f => f());
-  Object.values(v.peers).forEach(p => { p.pc.close(); if (p.el) p.el.srcObject = null; }); v.stream.getTracks().forEach(x => x.stop());
+  Object.values(v.peers).forEach(p => { try { p.pc.close(); } catch {} if (p.el) { p.el.srcObject = null; p.el.remove(); } if (p.video) p.video.remove(); if (p.audioCtx) p.audioCtx.close().catch(() => {}); if (p.raf) cancelAnimationFrame(p.raf); }); v.stream.getTracks().forEach(x => x.stop());
   deleteDoc(doc(db, "servers", v.sid, "voice", user.uid)).catch(() => {}); gv.style.display = "none";
 }
 addEventListener("pagehide", leaveVoice);
@@ -1003,8 +1114,7 @@ function vbanUpdate() {
   const here = vw && mpath?.[0] === "servers" && mpath[1] === vw.sid, live = vw ? vw.parts.filter(vlive) : [], on = here ? live : [];
   const vg = $("vgrp"); if (vg) vg.textContent = "🔊" + (vw && cur && vw.sid === cur.id && live.length ? " " + live.length : "");
   if (!on.length) { vban.style.display = "none"; vban.dataset.k = ""; return; }
-  const key = on.map(x => x.id).join() + (vc ? "1" : "0"); if (vban.dataset.k === key && vban.style.display === "flex") return; vban.dataset.k = key;
-  const b = h("button", { className: "btn", textContent: vc ? "Вы в звонке" : "Присоединиться", style: "padding:6px 12px" }); b.disabled = !!vc; b.onclick = () => joinVoice(vw.sid);
+  const key = on.map(x => x.id).join() + (vc ? "1" : "0"); if (vban.dataset.k === key && vban.style.display === "flex") return; vban.dataset.k = key; const b = h("button", { className: "btn", textContent: vc ? "Вы в звонке" : "Присоединиться", style: "padding:6px 12px" }); b.disabled = !!vc; b.onclick = () => joinVoice(vw.sid);
   vban.replaceChildren(h("span", { style: "flex:1", textContent: "🔊 Идёт голосовой звонок: " + on.map(x => x.name || "?").join(", ") }), b); vban.style.display = "flex";
 }
 function watchVoice(sid) {
@@ -1013,12 +1123,12 @@ function watchVoice(sid) {
   vbanUpdate();
 }
 setInterval(vbanUpdate, 3000);
-{ const vg = h("button", { className: "ib", id: "vgrp", title: "Голосовой канал сервера (для всех)", textContent: "🔊" }); $("vvid").after(vg);
-  vg.onclick = () => vc ? toast("Вы уже в голосовом канале") : mpath?.[0] === "servers" ? joinVoice(mpath[1]) : toast("Откройте канал сервера"); }
+{ const vg = h("button", { className: "ib", id: "vgrp", title: "Голосовой канал сервера (для всех)", textContent: "🔊" }); $("vvid").after(vg); vg.onclick = () => vc ? toast("Вы уже в голосовом канале") : mpath?.[0] === "servers" ? joinVoice(mpath[1]) : toast("Откройте канал сервера"); }
 async function createChannel() {
   if (!cur) return;
   const name = (await ask("Создать канал", "Название канала.", "новый-канал") || "").toLowerCase().replace(/\s+/g, "-"); if (!name) return;
-  try { await addDoc(collection(db, "servers", cur.id, "channels"), { name, createdAt: serverTimestamp() }); } catch (e) { toast("Ошибка: " + e.code); }
+  const category = (await ask("Категория канала", "Например: ОБЩЕЕ, ИГРЫ. Оставьте пустым для канала без категории.", "Общее") || "").trim().slice(0, 30);
+  try { await addDoc(collection(db, "servers", cur.id, "channels"), { name, category, type: "text", createdAt: serverTimestamp() }); } catch (e) { toast("Ошибка: " + e.code); }
 }
 $("dp").style.whiteSpace = "pre-line";
 </script>
