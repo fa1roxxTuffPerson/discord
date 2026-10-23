@@ -101,6 +101,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 .pl .f{position:absolute;inset:0 auto 0 0;background:rgba(88,101,242,.35)}.pl span{position:relative}.pl .me{outline:1px solid var(--acc)}
 #gv{position:fixed;right:12px;bottom:84px;background:var(--bg2);border:1px solid var(--bg1);border-radius:10px;padding:10px 12px;z-index:40;min-width:210px;display:none;box-shadow:0 4px 16px #0006}
 #gv b{display:block;margin-bottom:6px}#gv .pp{font-size:14px;padding:2px 0}#gv .ib{margin-right:4px}
+.sysm{text-align:center;color:var(--mut);font-size:13px;margin:8px 0;padding:0 12px}
 </style>
 </head>
 <body>
@@ -151,7 +152,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField, FieldPath, documentId, Bytes } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField, FieldPath, documentId, Bytes } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyBSyynf_g3goTl2bS05slOiylDnGru0m54",
@@ -161,7 +162,8 @@ const app = initializeApp({
   messagingSenderId: "451249698925",
   appId: "1:451249698925:web:e6311a6dbbd59957f9a764"
 });
-const auth = getAuth(app), db = getFirestore(app);
+const auth = getAuth(app);
+let db; try { db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true, localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); } catch { db = getFirestore(app); }
 setPersistence(auth, browserLocalPersistence).catch(() => {}); // вход сохраняется после закрытия браузера
 const $ = id => document.getElementById(id);
 const LS = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
@@ -328,16 +330,18 @@ function rich(text, names) {
 function openChat(path, title, ph, admin, emptyText) {
   unsub.msg && unsub.msg(); mpath = path; canDelAll = admin; replyTo = editing = null; bar(); const key = path[path.length - 2]; markSeen(key);
   $("cname").textContent = title; $("inp").disabled = false; $("inp").placeholder = ph; $("inp").focus();
-  let list = [];
+  let list = [], cnt = 30;
   const draw = () => {
     if (mpath !== path) return;
     const box = $("msgs"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || !box.children.length;
     box.replaceChildren();
+    if (list.length >= cnt) { const more = h("button", { className: "btn g", textContent: "⬆ Показать старые сообщения", style: "margin:8px auto;display:block" }); more.onclick = () => { cnt += 30; subscribe(); }; box.append(more); }
     if (!list.length) box.append(h("div", { className: "empty", textContent: emptyText }));
     const mnames = {}; { const src = path[0] === "servers" ? (cur?.names || {}) : (friends.find(x => x.id === path[1])?.names || {}); Object.entries(src).forEach(([u, n]) => { const k = String(nameOf(u, n)).toLowerCase(); if (k) mnames[k] = u; }); }
     let prev = null;
     list.forEach(m => {
       let mine = false;
+      if (m.sys) { box.append(h("div", { className: "sysm", textContent: m.text + (m.createdAt ? " · " + hm(m.createdAt) : "") })); prev = null; return; }
       const nm = nameOf(m.uid, m.name), srv = path[0] === "servers", secs = m.createdAt?.seconds || Date.now() / 1000;
       const first = !prev || prev.uid !== m.uid || secs - (prev.createdAt?.seconds || secs) > 420;
       const body = h("div", { className: "b" });
@@ -345,7 +349,7 @@ function openChat(path, title, ph, admin, emptyText) {
       if (m.pin) body.append(h("div", { className: "ts", textContent: "📌 закреплено" }));
       if (m.re) { const q = h("div", { className: "qt", textContent: "↩ " + m.re.name + ": " + m.re.text }); q.onclick = e => { e.stopPropagation(); const t = [...$("msgs").children].find(x => x.dataset.id === m.re.id); if (!t) return toast("Исходное сообщение далеко или удалено"); t.scrollIntoView({ block: "center", behavior: "smooth" }); t.classList.add("flash"); setTimeout(() => t.classList.remove("flash"), 1500); }; body.append(q); }
       if (m.text) { const rt = rich(m.text, mnames); if (rt.mine && m.uid !== user.uid) mine = true; body.append(h("div", { className: "t" }, rt.frag, m.edited ? h("span", { className: "ts", textContent: " (изменено)" }) : "")); }
-      if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
+      if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото", loading: "lazy", decoding: "async" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
       if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
       if (m.vid) {
         if (vcache[m.id]) body.append(h("video", { src: vcache[m.id], controls: true, playsInline: true, className: "pic", style: "cursor:default;max-height:360px;background:#000" }));
@@ -368,13 +372,17 @@ function openChat(path, title, ph, admin, emptyText) {
     if (atEnd) box.scrollTop = box.scrollHeight;
   };
   redraw = draw;
-  unsub.msg = onSnapshot(query(collection(db, ...path), orderBy("createdAt", "desc"), limit(100)), snap => {
+  const subscribe = () => {
+  unsub.msg && unsub.msg();
+  unsub.msg = onSnapshot(query(collection(db, ...path), orderBy("createdAt", "desc"), limit(cnt)), snap => {
     if (mpath !== path) return;
     const old = new Set(list.map(m => m.id)), had = list.length > 0;
     list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); curList = list;
     if (had && document.hidden && "Notification" in window && Notification.permission === "granted" && ucache[user.uid]?.status !== "dnd") list.filter(m => !old.has(m.id) && m.uid !== user.uid && m.createdAt).slice(-3).forEach(m => { try { new Notification(nameOf(m.uid, m.name) + " · " + title, { body: (m.text || "📎 Вложение").slice(0, 100), icon: "icon-192.png" }); } catch {} });
     draw(); markSeen(key); refreshDots();
   }, e => toast("Ошибка чтения: " + e.code));
+  };
+  subscribe();
 }
 async function send(data) {
   if (!mpath) return false;
@@ -426,10 +434,10 @@ function shrink(file) {
   return new Promise((res, rej) => {
     const img = new Image();
     img.onload = () => {
-      const k = Math.min(1, 900 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      const k = Math.min(1, 800 / Math.max(img.width, img.height)), c = document.createElement("canvas");
       c.width = img.width * k | 0; c.height = img.height * k | 0; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
       let q = .75, d = c.toDataURL("image/jpeg", q);
-      while (d.length > 700000 && q > .3) { q -= .1; d = c.toDataURL("image/jpeg", q); }
+      while (d.length > 450000 && q > .3) { q -= .1; d = c.toDataURL("image/jpeg", q); }
       d.length > 900000 ? rej() : res(d);
     };
     img.onerror = rej; img.src = URL.createObjectURL(file);
@@ -712,6 +720,8 @@ const TURN = null;
 const ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }, ...(TURN ? [TURN] : [])] };
 let shareStream = null, pc = null, callId = null, callName = "", localStream = null, callUnsubs = [], iceQ = [], iceBuf = [], ringT;
 const cref = id => doc(db, "calls", id);
+let callInfo = null, callWhy = "";
+const callFmt = ms => { const t = Math.round(ms / 1000); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
 const sendIce = c => { if (!callId) return iceQ.push(c); addDoc(collection(db, "calls", callId, "ice"), { from: user.uid, cand: JSON.stringify(c) }).catch(() => {}); };
 const addCand = async c => { if (pc?.remoteDescription) await pc.addIceCandidate(c).catch(() => {}); else iceBuf.push(c); };
 const flushBuf = async () => { for (const c of iceBuf.splice(0)) await pc.addIceCandidate(c).catch(() => {}); };
@@ -760,12 +770,15 @@ const showCall = t => { $("cs").textContent = t; $("callui").classList.add("show
 function watchCall(id) {
   callUnsubs.push(onSnapshot(cref(id), async snap => {
     const d = snap.data(); if (!d || !pc) return;
+    if (d.status === "accepted" && callInfo && !callInfo.t0) { callInfo.t0 = Date.now(); updateDoc(callInfo.ref, { text: "📞 Идёт звонок…" }).catch(() => {}); }
     if (d.answer && !pc.remoteDescription) { await pc.setRemoteDescription(d.answer).catch(() => {}); await flushBuf(); }
-    if (d.status === "declined" || d.status === "ended") { toast(d.status === "declined" ? "Звонок отклонён" : "Звонок завершён"); endCall(false); }
+    if (d.status === "declined" || d.status === "ended") { callWhy = d.status; toast(d.status === "declined" ? "Звонок отклонён" : "Звонок завершён"); endCall(false); }
   }));
   callUnsubs.push(onSnapshot(collection(db, "calls", id, "ice"), snap => snap.docChanges().forEach(ch => { if (ch.type === "added" && ch.doc.data().from !== user.uid) addCand(JSON.parse(ch.doc.data().cand)); })));
 }
 function endCall(notify = true) {
+  if (callInfo) { const ci = callInfo; callInfo = null; updateDoc(ci.ref, { text: ci.t0 ? "📞 Звонок завершён · " + callFmt(Date.now() - ci.t0) : callWhy === "declined" ? "📞 Звонок отклонён" : callWhy === "missed" ? "📞 Пропущенный звонок" : "📞 Звонок отменён" }).catch(() => {}); }
+  callWhy = "";
   const id = callId; clearTimeout(ringT); callUnsubs.forEach(f => f()); callUnsubs = [];
   shareStream && shareStream.getTracks().forEach(t => t.stop()); shareStream = null; $("cshare").style.background = "";
   pc && pc.close(); pc = null; localStream && localStream.getTracks().forEach(t => t.stop()); localStream = null;
@@ -783,7 +796,11 @@ async function startCall(video) {
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
     const r = await addDoc(collection(db, "calls"), { from: user.uid, to, fromName: myName(), video, status: "ringing", offer: { type: offer.type, sdp: offer.sdp }, createdAt: serverTimestamp() });
     setCallId(r.id); watchCall(r.id);
-    ringT = setTimeout(() => { if (pc && !pc.remoteDescription) { toast("Нет ответа"); endCall(true); } }, 45000);
+    try {
+      const mref = await addDoc(collection(db, "friends", f.id, "messages"), { text: "📞 " + myName() + (video ? " звонит по видео…" : " звонит…"), sys: true, uid: user.uid, name: myName(), createdAt: serverTimestamp() });
+      if (pc) { callInfo = { ref: mref, t0: null }; updateDoc(doc(db, "friends", f.id), { last: serverTimestamp(), lastBy: user.uid }).catch(() => {}); } else updateDoc(mref, { text: "📞 Звонок отменён" }).catch(() => {});
+    } catch {}
+    ringT = setTimeout(() => { if (pc && !pc.remoteDescription) { callWhy = "missed"; toast("Нет ответа"); endCall(true); } }, 45000);
   } catch (e) { toast("Звонок не начат: " + mediaErr(e)); endCall(false); }
 }
 async function acceptCall(c) {
