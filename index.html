@@ -146,7 +146,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 <div class="dlg" id="lbw"><img id="lb" alt="" style="max-width:95vw;max-height:90vh;border-radius:8px"></div>
 <div class="dlg" id="pnl"><div class="card" id="pc" style="max-height:88vh;overflow:auto"></div></div>
 <div class="dlg" id="inc"><div class="card" id="ic" style="text-align:center"></div></div>
-<div id="callui"><video id="rv" autoplay playsinline></video><video id="lv" autoplay playsinline muted></video><div id="cs"></div><div id="cbar"><button id="cmic" aria-label="Микрофон">🎤</button><button id="ccam" aria-label="Камера">📷</button><button id="cshare" aria-label="Экран">🖥</button><button id="cend" aria-label="Завершить">📞</button></div></div>
+<div id="callui"><audio id="ra" autoplay></audio><video id="rv" autoplay playsinline muted></video><video id="lv" autoplay playsinline muted></video><div id="cs"></div><div id="cbar"><button id="cmic" aria-label="Микрофон">🎤</button><button id="ccam" aria-label="Камера">📷</button><button id="cshare" aria-label="Экран">🖥</button><button id="cend" aria-label="Завершить">📞</button></div></div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -742,9 +742,14 @@ function makePC(caller) {
   pc.onicecandidate = e => e.candidate && sendIce(e.candidate.toJSON());
   const remote = new MediaStream(), r = $("rv"); r.className = "audio";
   pc.ontrack = e => {
+    if (e.track.kind === "audio") {
+      // звук играем отдельным <audio>, чтобы он не зависел от видеодорожки
+      const a = $("ra"); a.srcObject = new MediaStream([e.track]); a.play?.().catch(() => {});
+      return;
+    }
     if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
-    r.srcObject = remote; r.play?.().catch(() => {});
-    if (e.track.kind === "video") { const upd = () => r.classList.toggle("audio", e.track.muted); e.track.onmute = upd; e.track.onunmute = upd; upd(); }
+    r.srcObject = remote; r.muted = true; r.play?.().catch(() => {});
+    const upd = () => r.classList.toggle("audio", e.track.muted); e.track.onmute = upd; e.track.onunmute = upd; upd();
   };
   pc.onconnectionstatechange = () => {
     const st = pc?.connectionState;
@@ -788,7 +793,7 @@ function endCall(notify = true) {
   const id = callId; clearTimeout(ringT); callUnsubs.forEach(f => f()); callUnsubs = [];
   shareStream && shareStream.getTracks().forEach(t => t.stop()); shareStream = null; $("cshare").style.background = "";
   pc && pc.close(); pc = null; localStream && localStream.getTracks().forEach(t => t.stop()); localStream = null;
-  callId = null; iceQ = []; iceBuf = []; $("callui").classList.remove("show"); $("rv").srcObject = null; $("lv").srcObject = null;
+  callId = null; iceQ = []; iceBuf = []; $("callui").classList.remove("show"); $("rv").srcObject = null; $("ra").srcObject = null; $("lv").srcObject = null;
   if (id && notify) updateDoc(cref(id), { status: "ended" }).catch(() => {});
 }
 const mediaErr = e => e.name === "NotAllowedError" ? "нет доступа к микрофону или камере" : e.name === "NotFoundError" ? "микрофон или камера не найдены" : (e.message || e.name);
