@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fa1roxx — Community</title>
+<title>Fa1roxx 4.0 — Community</title>
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1e1f22"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--bg1:#1e1f22;--bg2:#2b2d31;--bg3:#313338;--hover:#35373c;--txt:#dbdee1;--mut:#949ba4;--acc:#5865f2;--acc2:#4752c4;--red:#da373c;--grn:#23a55a}
@@ -97,6 +97,10 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 [data-theme=neon] #auth{background:radial-gradient(ellipse at 15% 15%,#7c3aed 0,transparent 42%),radial-gradient(ellipse at 85% 85%,#0e7490 0,transparent 45%),#080b18}
 [data-theme=neon] .card,[data-theme=neon] #form,[data-theme=neon] .dlg .card{border:1px solid #8b5cf655;box-shadow:0 0 28px #7c3aed22}
 [data-theme=neon] .sv.on,[data-theme=neon] .btn{box-shadow:0 0 14px #a855f744}
+[data-theme=neon] .av{animation:fxglow 3s ease-in-out infinite alternate}
+@keyframes fxglow{from{box-shadow:0 0 4px #a855f766}to{box-shadow:0 0 13px #22d3ee88}}
+.ch.voicech{color:var(--mut)}
+.ch.voicech::first-letter{color:#2de2a6}
 [data-theme=neon] .ch.on{background:#a855f72a;box-shadow:inset 3px 0 #c084fc}
 [data-theme=neon] .m.ment{background:#a855f71c;box-shadow:inset 3px 0 #c084fc}
 [data-theme=neon] :focus-visible{outline-color:#67e8f9}
@@ -109,6 +113,8 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 #gv{position:fixed;right:12px;bottom:84px;background:var(--bg2);border:1px solid var(--bg1);border-radius:10px;padding:10px 12px;z-index:40;min-width:210px;display:none;box-shadow:0 4px 16px #0006}
 #gv b{display:block;margin-bottom:6px}#gv .pp{font-size:14px;padding:5px 6px;margin:2px 0;border-radius:6px}#gv .ib{margin-right:4px}#gv{max-width:min(340px,calc(100vw - 24px));max-height:70vh;overflow:auto}#gv .vcontrols{display:flex;flex-wrap:wrap;gap:3px;border-bottom:1px solid var(--bg1);padding-bottom:6px;margin-bottom:6px}#gv .vdevices{display:grid;gap:5px;margin:6px 0}.vsetting{display:grid;gap:3px;font-size:11px;color:var(--mut)}.vsetting select{font-size:12px;padding:5px;max-width:100%}.vvol{margin:2px 0 0 18px}.vvol small{color:var(--mut)}#gv .speaking{outline:2px solid var(--grn);background:rgba(35,165,90,.14)}
 .sysm{text-align:center;color:var(--mut);font-size:13px;margin:8px 0;padding:0 12px}
+
+[data-theme=neon] .rl{box-shadow:0 0 10px #a855f733}
 </style>
 </head>
 <body>
@@ -159,7 +165,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField, FieldPath, documentId, Bytes } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField, FieldPath, documentId, Bytes, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyBSyynf_g3goTl2bS05slOiylDnGru0m54",
@@ -174,7 +180,7 @@ let db; try { db = initializeFirestore(app, { experimentalAutoDetectLongPolling:
 setPersistence(auth, browserLocalPersistence).catch(() => {}); // вход сохраняется после закрытия браузера
 const $ = id => document.getElementById(id);
 const LS = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
-const applyLook = () => { document.documentElement.dataset.theme = LS.get("theme") || "dark"; document.body.style.fontSize = (LS.get("fs") || "15") + "px"; const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = document.documentElement.dataset.theme === "neon" ? "#0b1020" : document.documentElement.dataset.theme === "light" ? "#ffffff" : "#1e1f22"; };
+const applyLook = () => { const theme = LS.get("theme") || "dark"; document.documentElement.dataset.theme = theme; document.documentElement.style.setProperty("--acc", LS.get("accent") || (theme === "neon" ? "#a855f7" : "#5865f2")); document.body.style.fontSize = (LS.get("fs") || "15") + "px"; const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = theme === "neon" ? "#0b1020" : theme === "light" ? "#ffffff" : "#1e1f22"; };
 applyLook();
 queueMicrotask(() => { $("burger").onclick = () => $("app").classList.toggle("nav"); $("bd").onclick = () => $("app").classList.remove("nav"); });
 const h = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach(k => e.append(k)); return e; };
@@ -184,8 +190,8 @@ const colorOf = s => colors[[...String(s)].reduce((a, c) => a + c.charCodeAt(0),
 const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url("${u.avatar}")`; a.style.backgroundSize = "cover"; a.style.backgroundPosition = "center"; a.classList.add("img"); } else a.style.background = colorOf(name); return a; };
 const toast = t => { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = "none", 2200); };
 
-let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null, allChans = [], curList = [];
-let unsub = { sv: null, ch: null, msg: null };
+let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null, allChans = [], curList = [], currentServerPerms = [];
+let unsub = { sv: null, ch: null, msg: null, perm: null };
 
 /* ---------- AUTH ---------- */
 let reg = false;
@@ -235,7 +241,7 @@ function boot() {
   unsub.sv = onSnapshot(query(collection(db, "servers"), where("members", "array-contains", user.uid)), snap => {
     servers = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
     if (cur && !servers.find(s => s.id === cur.id)) { cur = null; selectServer(null); }
-    else if (cur) cur = servers.find(s => s.id === cur.id);
+    else if (cur) { cur = servers.find(s => s.id === cur.id); if (cur) loadMyServerPermissions(cur.id, cur); }
     if (!cur && !home && servers.length) { selectServer(servers[0].id); return; }
     if (cur) { chans = allChans.filter(vis); renderChans(); } renderRail(); renderMembers(); redraw && redraw(); $("sname").textContent = cur ? cur.name : "Выберите сервер";
   }, e => toast("Ошибка: " + e.code));
@@ -247,13 +253,23 @@ function renderRail() {
   r.append(hb, h("div", { className: "sep" }));
   servers.forEach(s => { const b = h("button", { className: "sv" + (!home && cur?.id === s.id ? " on" : "") + (s.lastCh && unread(s.lastCh, s) && !(cur?.id === s.id && curCh === s.lastCh) ? " unr" : ""), textContent: s.icon ? "" : s.name.slice(0, 2).toUpperCase(), title: s.name }); if (s.icon) Object.assign(b.style, { backgroundImage: `url("${s.icon}")`, backgroundSize: "cover", backgroundPosition: "center" }); b.onclick = () => selectServer(s.id); r.append(b); });
   r.append(h("div", { className: "sep" }));
+  const discover = h("button", { className: "sv add", textContent: "🌐", title: "Каталог публичных сообществ" }); discover.onclick = discoverServers;
   const add = h("button", { className: "sv add", textContent: "+", title: "Создать сервер" }); add.onclick = createServer;
   const join = h("button", { className: "sv add", textContent: "→", title: "Присоединиться по коду" }); join.onclick = joinServer;
-  r.append(add, join);
+  r.append(discover, add, join);
 }
 function selectServer(id) {
   unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); curCh = null; chans = []; home = false; mpath = null;
-  cur = servers.find(s => s.id === id) || null; watchVoice(cur?.id);
+  unsub.perm && unsub.perm(); unsub.perm = null;
+  cur = servers.find(s => s.id === id) || null; currentServerPerms = [];
+  if (cur) {
+    loadMyServerPermissions(cur.id, cur);
+    unsub.perm = onSnapshot(doc(db, "servers", cur.id, "memberPermissions", user.uid), snap => {
+      currentServerPerms = snap.exists() && Array.isArray(snap.data().perms) ? snap.data().perms : [];
+      renderChans(); renderMembers();
+    }, () => { currentServerPerms = []; });
+  }
+  watchVoice(cur?.id);
   renderRail(); renderMembers(); renderChans(); $("menu").hidden = !cur;
   $("sname").textContent = cur ? cur.name : "Выберите сервер";
   $("cname").textContent = "# —"; $("inp").disabled = true;
@@ -261,7 +277,7 @@ function selectServer(id) {
   if (!cur) return;
   unsub.ch = onSnapshot(query(collection(db, "servers", cur.id, "channels"), orderBy("createdAt")), snap => {
     allChans = snap.docs.map(d => ({ id: d.id, ...d.data() })); chans = allChans.filter(vis);
-    if (!curCh || !chans.find(c => c.id === curCh)) { if (chans.length) selectChannel(chans[0].id); }
+    if (!curCh || !chans.find(c => c.id === curCh)) { const firstText = chans.find(c => c.type !== "voice"); if (firstText) selectChannel(firstText.id); }
     renderChans(); paintTyping();
   });
 }
@@ -269,9 +285,11 @@ function renderChans() {
   const c = $("chs"); c.replaceChildren();
   if (!cur) return;
   const add = h("button", { textContent: "+", title: "Создать канал" }); add.onclick = createChannel;
-  c.append(h("div", { className: "sec" }, h("span", { textContent: "КАНАЛЫ" }), add));
+  c.append(h("div", { className: "sec" }, h("span", { textContent: "КАНАЛЫ" }), ...(perm(user.uid, "channels") ? [add] : [])));
   const groups = new Map(); chans.filter(ch => ch.type !== "voice").forEach(ch => { const k = ch.category || "Без категории"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(ch); });
   groups.forEach((items, category) => { if (groups.size > 1 || category !== "Без категории") c.append(h("div", { className: "sec", style: "padding-top:10px", textContent: "⌄ " + category.toUpperCase() })); items.forEach(ch => { const b = h("button", { className: "ch" + (curCh === ch.id ? " on" : "") + (curCh !== ch.id && unread(ch.id, ch) ? " unr" : ""), textContent: (ch.roles?.length ? "🔒 " : "# ") + ch.name }); b.onclick = () => selectChannel(ch.id); c.append(b); }); });
+  const voiceChans = chans.filter(ch => ch.type === "voice");
+  if (voiceChans.length) { c.append(h("div", { className: "sec", style: "padding-top:12px", textContent: "🔊 ГОЛОСОВЫЕ КОМНАТЫ" })); voiceChans.forEach(ch => { const b = h("button", { className: "ch voicech", textContent: "🔊 " + ch.name + (vw?.channelId === ch.id ? " · " + vw.parts.filter(v => v.channelId === ch.id && vlive(v)).length : "") }); b.onclick = () => vc ? (vc.channelId === ch.id ? toast("Вы уже в этой комнате") : leaveVoice().then(() => joinVoice(cur.id, ch.id))) : joinVoice(cur.id, ch.id); c.append(b); }); }
 }
 function renderMembers() {
   const m = $("mem"); m.replaceChildren();
@@ -402,9 +420,10 @@ function openChat(path, title, ph, admin, emptyText) {
       const threadCount = list.filter(x => x.threadRoot === m.id).length;
       act("🧵" + (threadCount ? " " + threadCount : ""), () => openThread(m, path, title), "Открыть ветку обсуждения");
       act("➡️", () => forwardMessage(m), "Переслать");
+      if (srv && m.uid !== user.uid) act("🚩", () => reportContent({ targetUid: m.uid, targetName: nm, messageId: m.id, channelId: path[3], kind: "message", messageText: (m.text || "Вложение").slice(0,300) }), "Пожаловаться на сообщение");
       if (m.uid === user.uid && m.text) act("✏", () => setEdit(m), "Изменить");
       if (!srv || perm(user.uid, "mod") || canDelAll) act(m.pin ? "📍" : "📌", () => updateDoc(doc(db, ...path, m.id), { pin: !m.pin }).catch(x => toast("Ошибка: " + x.code)), m.pin ? "Открепить" : "Закрепить");
-      if (m.uid === user.uid || canDelAll) act("🗑", async () => { if (m.vid) for (let i = 0; i < m.vid.n; i++) await deleteDoc(doc(db, ...path, m.id, "chunks", "" + i)).catch(() => {}); deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); }, "Удалить");
+      if (m.uid === user.uid || canDelAll || (srv && perm(user.uid, "messages"))) act("🗑", async () => { if (m.vid) for (let i = 0; i < m.vid.n; i++) await deleteDoc(doc(db, ...path, m.id, "chunks", "" + i)).catch(() => {}); deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); }, "Удалить");
       row.append(acts); row.onclick = e => { if (!e.target.closest("button,img,audio,.who,.av")) row.classList.toggle("sel"); };
       box.append(row); prev = m;
     });
@@ -423,8 +442,19 @@ function openChat(path, title, ph, admin, emptyText) {
   };
   subscribe();
 }
+const sendTimes = [];
 async function send(data) {
   if (!mpath) return false;
+  if (mpath[0] === "servers" && cur) {
+    const text = String(data.text || "");
+    const cfg = cur.autoMod || {};
+    if (cfg.blockLinks && /https?:\/\//i.test(text) && !perm(user.uid, "mod")) { toast("Автомодерация: ссылки запрещены на этом сервере"); return false; }
+    if (cfg.filterWords?.length && cfg.filterWords.some(w => w && text.toLowerCase().includes(String(w).toLowerCase())) && !perm(user.uid, "mod")) { toast("Автомодерация: сообщение содержит запрещённое слово"); return false; }
+    if (/(?:@everyone|@here)/i.test(text) && !perm(user.uid, "mention")) { toast("Для @everyone и @here нужна соответствующая роль"); return false; }
+    const now = Date.now(); while (sendTimes.length && now-sendTimes[0] > 8000) sendTimes.shift();
+    if (cfg.antiSpam !== false && sendTimes.length >= 5 && !perm(user.uid, "mod")) { toast("Антиспам: подождите несколько секунд перед следующими сообщениями"); return false; }
+    sendTimes.push(now);
+  }
   if (mpath[0] === "servers" && cur?.to?.[user.uid] > Date.now()) { const t = cur.to[user.uid]; toast(t > Date.now() + 2e11 ? "Вам запретили писать на этом сервере" : "Таймаут до " + new Date(t).toLocaleTimeString("ru")); return false; }
   try {
     const { id: mid, ...rest } = data, body = { ...rest, ...(replyTo ? { re: replyTo } : {}), uid: user.uid, name: myName(), createdAt: serverTimestamp() };
@@ -435,7 +465,18 @@ async function send(data) {
     else updateDoc(doc(db, "friends", mpath[1]), l).catch(() => {});
     return true;
   }
-  catch (er) { toast("Не отправлено: " + er.code); return false; }
+  catch (er) {
+    console.error("Fa1roxx send failed", { code: er?.code, message: er?.message, path: mpath });
+    const code = er?.code || "unknown";
+    const friendly = code === "permission-denied"
+      ? "Firebase запретил отправку (permission-denied). Проверь firestore.rules: опубликованы ли правила именно из этого проекта?"
+      : code === "unauthenticated" ? "Сессия закончилась — выйдите и войдите снова."
+      : code === "unavailable" ? "Firebase недоступен. Проверьте интернет и повторите."
+      : code === "resource-exhausted" ? "Слишком большой файл/сообщение для Firestore. Для вложений нужен Firebase Storage."
+      : (er?.message || code);
+    toast("Не отправлено: " + friendly);
+    return false;
+  }
 }
 async function forwardMessage(m) {
   const targets = [];
@@ -505,7 +546,17 @@ $("file").accept = "image/*,video/*,application/pdf,text/plain,.doc,.docx,.zip,.
 $("file").onchange = async () => {
   const f = $("file").files[0]; $("file").value = ""; if (!f || !mpath) return;
   if (f.type.startsWith("video/")) return sendVideo(f);
-  if (f.type.startsWith("image/")) { try { toast("Отправка фото…"); await send({ text: "", img: await shrink(f) }); } catch { toast("Не удалось обработать фото"); } return; }
+  if (f.type === "image/gif" || /\.gif$/i.test(f.name)) {
+    // Не прогоняем GIF через canvas: это превращало анимацию в один JPEG-кадр.
+    if (f.size > 520000) return toast("GIF слишком большой для Firestore (лимит около 1 МБ на документ). Выберите GIF до 520 КБ или используйте Firebase Storage.");
+    try {
+      const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f); });
+      toast("Отправка GIF…");
+      await send({ text: "", img: data, gif: true });
+    } catch (e) { toast("Не удалось прочитать GIF: " + (e?.message || "ошибка файла")); }
+    return;
+  }
+  if (f.type.startsWith("image/")) { try { toast("Отправка фото…"); await send({ text: "", img: await shrink(f) }); } catch (e) { toast("Не удалось обработать фото: " + (e?.message || "ошибка изображения")); } return; }
   if (f.size > 450000) return toast("Файл больше 450 КБ. Для больших файлов нужна Firebase Storage");
   try { const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f); }); toast("Отправка файла…"); await send({ text: "", file: { name: f.name, type: f.type || "application/octet-stream", size: f.size, data } }); } catch { toast("Не удалось прочитать файл"); }
 };
@@ -540,7 +591,7 @@ $("gif").onclick = () => {
   const search = mkBtn("🔎 Найти GIF на GIPHY", () => { const term = q.value.trim(); if (!term) return toast("Введите запрос"); window.open("https://giphy.com/search/" + encodeURIComponent(term), "_blank", "noopener,noreferrer"); }, "btn");
   const url = h("input", { className: "in", placeholder: "Вставьте прямую HTTPS-ссылку на GIF" });
   const sendGif = mkBtn("Отправить GIF", async () => { const u = url.value.trim(); if (!/^https:\/\//i.test(u)) return toast("Нужна HTTPS-ссылка на GIF"); try { const ok = await send({ text: "", img: u, gif: true }); if (ok) closeM(); } catch { toast("Не удалось отправить GIF"); } }, "btn full");
-  modal(h("h1", { textContent: "GIF-поиск", style: "text-align:center;font-size:22px" }), h("p", { textContent: "Найди GIF, скопируй прямую ссылку на изображение и вставь её ниже. Внешний поиск открывается в новой вкладке.", style: "margin:8px 0" }), q, search, h("label", { textContent: "ССЫЛКА НА GIF" }), url, sendGif);
+  modal(h("h1", { textContent: "GIF-поиск", style: "text-align:center;font-size:22px" }), h("p", { textContent: "Поиск откроется в новой вкладке. Вставь сюда прямую HTTPS-ссылку на файл GIF (обычно заканчивается на .gif или ведёт на media.tenor.com / media.giphy.com). Обычная страница tenor.com/gif/... или giphy.com/gifs/... не является ссылкой на файл. Можно также прикрепить GIF-файл кнопкой 📎.", style: "margin:8px 0" }), q, search, h("label", { textContent: "ПРЯМАЯ HTTPS-ССЫЛКА НА GIF" }), url, sendGif);
 };
 
 /* ---------- PROFILES / ROLES / MODERATION ---------- */
@@ -553,7 +604,37 @@ function getUser(uid) {
 const nameOf = (uid, fb) => ucache[uid]?.name || fb;
 const roleOf = uid => cur && (cur.roles || []).find(r => r.id === (cur.mr || {})[uid]);
 const nameColor = (uid, fb) => roleOf(uid)?.color || colorOf(fb);
-const perm = (uid, p) => cur && (cur.owner === uid || !!roleOf(uid)?.perms?.includes(p));
+const perm = (uid, p) => !!cur && (cur.owner === uid || (uid === user?.uid ? currentServerPerms.includes(p) : !!roleOf(uid)?.perms?.includes(p)));
+async function loadMyServerPermissions(sid, serverData) {
+  currentServerPerms = [];
+  if (!user || !sid) return;
+  try {
+    // The owner migrates legacy role assignments once; existing permission docs are never overwritten here.
+    if (serverData?.owner === user.uid && !directorySynced.has(sid)) {
+      const dref = doc(db, "publicDirectory", sid), directory = await getDoc(dref);
+      if (serverData.publicListing) {
+        if (!directory.exists()) await setDoc(dref, { name:serverData.name || "Сообщество", icon:serverData.icon || "", publicDescription:serverData.publicDescription || "", updatedAt:serverTimestamp() });
+      } else if (directory.exists()) await deleteDoc(dref);
+      directorySynced.add(sid);
+    }
+    if (serverData?.owner === user.uid && !permissionsMigrated.has(sid)) {
+      const roleMap = new Map((serverData.roles || []).map(r => [r.id, r]));
+      await Promise.all((serverData.members || []).map(async uid => {
+        const pref = doc(db, "servers", sid, "memberPermissions", uid), existing = await getDoc(pref);
+        if (!existing.exists()) {
+          const role = roleMap.get((serverData.mr || {})[uid]);
+          await setDoc(pref, { uid, roleId: role?.id || "", perms: Array.isArray(role?.perms) ? role.perms : [], migratedAt: serverTimestamp() });
+        }
+      }));
+      permissionsMigrated.add(sid);
+    }
+    const mine = await getDoc(doc(db, "servers", sid, "memberPermissions", user.uid));
+    currentServerPerms = mine.exists() && Array.isArray(mine.data().perms) ? mine.data().perms : [];
+  } catch (e) {
+    currentServerPerms = [];
+    console.warn("Fa1roxx permissions could not be loaded", e.code || e);
+  }
+}
 function paintMe() {
   $("menm").textContent = myName();
   const a = avatar(myName(), user.uid); a.id = "meav"; a.onclick = () => showProfile(user.uid); $("meav").replaceWith(a);
@@ -576,26 +657,47 @@ async function showProfile(uid, fb) {
   items.push(a, h("h1", { textContent: nm, style: "text-align:center;font-size:22px" }));
   if (u.banner) items.push(h("img", { src: u.banner, alt: "Баннер профиля", style: "width:100%;max-height:150px;object-fit:cover;border-radius:8px;margin:8px 0" }));
   if (u.statusText) items.push(h("p", { textContent: "💬 " + u.statusText, style: "margin:6px 0 0;overflow-wrap:anywhere" }));
+  if (u.gameStatus) items.push(h("p", { textContent: "🎮 " + u.gameStatus, style: "margin:6px 0 0;overflow-wrap:anywhere;color:var(--acc)" }));
   if (u.bio) items.push(h("p", { textContent: u.bio, style: "margin:6px 0 0" }));
   if (uid !== me) items.push(h("p", { textContent: isOn(uid) ? (u.status === "dnd" ? "🔴 Не беспокоить" : "🟢 В сети") : u.lastSeen && u.status !== "invisible" ? "⚪ Был(а) в сети " + new Date(ms(u.lastSeen)).toLocaleString("ru", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "", style: "margin:6px 0 0;font-size:13px" }));
   const r = cur && cur.members?.includes(uid) ? roleOf(uid) : null;
   if (r) items.push(h("div", { style: "text-align:center" }, h("span", { className: "rl", textContent: r.name, style: `color:${r.color};border-color:${r.color}` })));
+  const badges = [];
+  if (cur && cur.owner === uid) badges.push("👑 Владелец");
+  if (cur && cur.members?.includes(uid) && roleOf(uid)) badges.push("🛡 " + roleOf(uid).name);
+  if (u.gameStatus) badges.push("🎮 Игрок");
+  if (badges.length) items.push(h("div", { style:"display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin:8px 0" }, ...badges.map(b => h("span", { className:"rl", textContent:b }))));
   if (cur && cur.owner === uid) items.push(h("p", { textContent: "👑 Владелец сервера", style: "margin:6px 0 0" }));
   if (cur && cur.to?.[uid] > Date.now()) items.push(h("p", { textContent: "🔇 Ограничен в правах", style: "margin:6px 0 0;color:#fa777c" }));
   items.push(h("p", { textContent: "ID: " + uid, style: "font-size:11px;margin:10px 0 0;word-break:break-all" }));
   if (uid === me) items.push(mkBtn("✏️ Редактировать профиль", editProfile, "btn full"));
-  else if (cur && cur.members?.includes(uid) && uid !== cur.owner) {
+  else if (cur && cur.members?.includes(uid)) {
+    items.push(mkBtn("🚩 Пожаловаться на профиль", () => reportContent({ targetUid: uid, targetName: nm, kind: "profile" }), "btn g full"));
+  }
+  if (uid !== me && cur && cur.members?.includes(uid) && uid !== cur.owner) {
     const ref = doc(db, "servers", cur.id), done = p => p.then(() => { toast("Готово"); closeM(); }).catch(e => toast("Ошибка: " + e.code));
     if (perm(me, "roles")) {
-      const sel = h("select", { className: "in" }); sel.append(new Option("Без роли", "")); (cur.roles || []).forEach(x => sel.append(new Option(x.name, x.id))); sel.value = (cur.mr || {})[uid] || "";
-      sel.onchange = () => { logIt("роль «" + ((cur.roles || []).find(x => x.id === sel.value)?.name || "снята") + "»: " + nm); done(updateDoc(ref, { ["mr." + uid]: sel.value || deleteField() })); };
+      const sel = h("select", { className: "in" }); sel.append(new Option("Без роли", ""));
+      const availableRoles = (cur.roles || []).filter(x => cur.owner === user.uid || (x.perms || []).every(p => currentServerPerms.includes(p)));
+      availableRoles.forEach(x => sel.append(new Option(x.name, x.id)));
+      const assignedRole = (cur.roles || []).find(x => x.id === (cur.mr || {})[uid]);
+      if (assignedRole && !availableRoles.some(x => x.id === assignedRole.id)) { const opt = new Option(assignedRole.name + " (нужен владелец)", assignedRole.id); opt.disabled = true; sel.append(opt); }
+      sel.value = (cur.mr || {})[uid] || "";
+      sel.onchange = async () => {
+        const chosen = (cur.roles || []).find(x => x.id === sel.value), perms = Array.isArray(chosen?.perms) ? chosen.perms : [];
+        const batch = writeBatch(db);
+        batch.update(ref, { ["mr." + uid]: sel.value || deleteField() });
+        batch.set(doc(db, "servers", cur.id, "memberPermissions", uid), { uid, roleId: chosen?.id || "", perms, updatedAt: serverTimestamp() });
+        try { await batch.commit(); logIt("роль «" + (chosen?.name || "снята") + "»: " + nm); toast("Роль обновлена"); closeM(); }
+        catch (e) { toast("Не удалось назначить роль: " + e.code + ". Проверьте разрешения роли и Rules."); }
+      };
       items.push(h("label", { textContent: "РОЛЬ" }), sel);
     }
     if (perm(me, "mod") && (me === cur.owner || !perm(uid, "mod"))) {
       const lim = ms => { logIt((ms ? (ms > 2e11 ? "запрет писать: " : "таймаут " + Math.round(ms / 6e4) + " мин: ") : "снято ограничение: ") + nm); return done(updateDoc(ref, { ["to." + uid]: ms ? Date.now() + ms : deleteField() })); };
       items.push(h("div", { className: "sec" }, h("span", { textContent: "МОДЕРАЦИЯ" })),
         mkBtn("⏱ Таймаут 10 мин", () => lim(6e5)), mkBtn("⏱ Таймаут 1 час", () => lim(36e5)), mkBtn("🔇 Запретить писать", () => lim(3e11)), mkBtn("🔊 Снять ограничение", () => lim(0)),
-        mkBtn("👢 Кикнуть с сервера", () => confirm("Удалить " + nm + " с сервера? Он сможет вступить снова по приглашению.") && (logIt("кик: " + nm), done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField() })))), mkBtn("🔨 Забанить", () => confirm("Забанить " + nm + "?") && (logIt("бан: " + nm), done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField(), ["bn." + uid]: nm }))), "btn red"));
+        mkBtn("👢 Кикнуть с сервера", async () => { if (!confirm("Удалить " + nm + " с сервера? Он сможет вступить снова по приглашению.")) return; try { await updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField() }); await deleteDoc(doc(db, "servers", cur.id, "memberPermissions", uid)).catch(() => {}); logIt("кик: " + nm); toast("Участник удалён"); closeM(); } catch (e) { toast("Ошибка: " + e.code); } }), mkBtn("🔨 Забанить", async () => { if (!confirm("Забанить " + nm + "?")) return; try { await updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["bn." + uid]: nm }); await deleteDoc(doc(db, "servers", cur.id, "memberPermissions", uid)).catch(() => {}); logIt("бан: " + nm); toast("Пользователь забанен"); closeM(); } catch (e) { toast("Ошибка: " + e.code); } }, "btn red"));
     }
   }
   modal(...items);
@@ -607,7 +709,7 @@ async function square(file) {
 }
 function editProfile() {
   const u = ucache[user.uid] || {}; let av = u.avatar || null, banner = u.banner || "";
-  const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" }), statusText = h("input", { className: "in", value: u.statusText || "", maxLength: 60, placeholder: "Например: играю в Gorilla Tag" });
+  const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" }), statusText = h("input", { className: "in", value: u.statusText || "", maxLength: 60, placeholder: "Короткий статус" }), gameStatus = h("input", { className: "in", value: u.gameStatus || "", maxLength: 50, placeholder: "Например: 🎮 Gorilla Tag" });
   const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
   const f = h("input", { type: "file", accept: "image/*", "data-avf": "1", style: "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0" });
   f.setAttribute("data-avf", "1"); document.body.append(f);
@@ -620,13 +722,16 @@ function editProfile() {
   f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); f.value = ""; prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { f.value = ""; toast("Не удалось обработать фото, выберите JPG или PNG"); } };
   const sel = (opts, val) => { const e = h("select", { className: "in" }); opts.forEach(([v, t]) => e.append(h("option", { value: v, textContent: t }))); e.value = val; return e; };
   const st = sel([["online", "🟢 В сети"], ["dnd", "🔴 Не беспокоить"], ["invisible", "⚪ Невидимка"]], u.status || "online");
-  const th = sel([["dark", "Тёмная"], ["light", "Светлая"], ["neon", "Fa1roxx Neon"]], LS.get("theme") || "dark"); th.onchange = () => { LS.set("theme", th.value); applyLook(); };
+  const th = sel([["dark", "Тёмная"], ["light", "Светлая"], ["neon", "Fa1roxx Neon"]], LS.get("theme") || "dark"); th.onchange = () => { LS.set("theme", th.value); applyLook(); accent.value = LS.get("accent") || (th.value === "neon" ? "#a855f7" : "#5865f2"); };
+  const accent = h("input", { type:"color", value:LS.get("accent") || ((LS.get("theme") || "dark") === "neon" ? "#a855f7" : "#5865f2"), style:"width:100%;height:42px;margin-top:8px;padding:4px;background:var(--bg1);border:1px solid var(--bg2);border-radius:8px" });
+  accent.oninput = () => { LS.set("accent", accent.value); applyLook(); };
+  const resetAccent = mkBtn("↺ Сбросить акцентный цвет", () => { LS.set("accent", ""); accent.value = th.value === "neon" ? "#a855f7" : "#5865f2"; applyLook(); });
   const fs = sel([["13", "Мелкий"], ["15", "Обычный"], ["17", "Крупный"], ["19", "Очень крупный"]], LS.get("fs") || "15"); fs.onchange = () => { LS.set("fs", fs.value); applyLook(); };
   const nt = mkBtn("🔔 Уведомления в браузере", () => "Notification" in window ? Notification.requestPermission().then(r => toast(r === "granted" ? "Уведомления включены" : "Уведомления запрещены")) : toast("Браузер не поддерживает"));
   const save = mkBtn("Сохранить", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите ник");
     try {
-      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), statusText: statusText.value.trim(), banner: banner || "", avatar: av || "", status: st.value };
+      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), statusText: statusText.value.trim(), gameStatus: gameStatus.value.trim(), banner: banner || "", avatar: av || "", status: st.value };
       await setDoc(doc(db, "users", user.uid), data, { merge: true }); ucache[user.uid] = { ...ucache[user.uid], ...data };
       try { await updateProfile(auth.currentUser, { displayName: name }); } catch {} user = auth.currentUser;
       servers.forEach(x => updateDoc(doc(db, "servers", x.id), { ["names." + user.uid]: name }).catch(() => {}));
@@ -634,7 +739,7 @@ function editProfile() {
       paintMe(); renderMembers(); redraw && redraw(); if (home) renderHome(); closeM(); toast("Профиль обновлён");
     } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
   }, "btn full");
-  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, bp, bprev, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "ТЕКСТОВЫЙ СТАТУС" }), statusText, h("label", { textContent: "СТАТУС В СЕТИ" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, nt, save);
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, bp, bprev, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "ТЕКСТОВЫЙ СТАТУС" }), statusText, h("label", { textContent: "ВО ЧТО ИГРАЮ (ВРУЧНУЮ)" }), gameStatus, h("label", { textContent: "СТАТУС В СЕТИ" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "АКЦЕНТНЫЙ ЦВЕТ" }), accent, resetAccent, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, nt, save);
 }
 const PAL = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c", "#3498db", "#5865f2", "#9b59b6", "#e91e63", "#95a5a6"];
 function colorPick(init) {
@@ -647,40 +752,140 @@ function newRole(role) {
   const ref = doc(db, "servers", cur.id);
   const nm = h("input", { className: "in", placeholder: "Название роли", maxLength: 20, value: role?.name || "" }), cp = colorPick(role?.color || "#5865f2");
   const cb = (k, t) => { const i = h("input", { type: "checkbox", checked: !!role?.perms?.includes(k) }); const l = h("label", { style: "display:block;margin-top:12px;font-size:14px;color:var(--txt);font-weight:400" }, i, " " + t); l.k = k; l.i = i; return l; };
-  const c1 = cb("mod", "Банить, запрещать писать, таймаут"), c2 = cb("roles", "Создавать и выдавать роли");
+  const c1 = cb("mod", "Модерация: таймауты, кик и бан"), c2 = cb("roles", "Управлять ролями и выдавать их"), c3 = cb("channels", "Создавать, менять и удалять каналы"), c4 = cb("messages", "Удалять сообщения других участников"), c5 = cb("mention", "Упоминать @everyone / @here"), c6 = cb("voice", "Управлять участниками голосовых комнат");
   const ok = mkBtn(role ? "Сохранить" : "Создать", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите название");
-    const r = { id: role?.id || Date.now().toString(36), name, color: cp.get(), perms: [c1, c2].filter(c => c.i.checked).map(c => c.k) };
-    try { await updateDoc(ref, { roles: role ? (cur.roles || []).map(x => x.id === role.id ? r : x) : arrayUnion(r) }); closeM(); toast(role ? "Роль обновлена" : "Роль создана"); }
-    catch (e) { toast("Ошибка: " + e.code); }
+    const r = { id: role?.id || Date.now().toString(36), name, color: cp.get(), perms: [c1, c2, c3, c4, c5, c6].filter(c => c.i.checked).map(c => c.k) };
+    try {
+      if (cur.owner !== user.uid) return toast("Создавать и менять определения ролей может только владелец. Вы можете назначать существующие роли.");
+      const nextRoles = role ? (cur.roles || []).map(x => x.id === role.id ? r : x) : [...(cur.roles || []), r];
+      const nextMr = { ...(cur.mr || {}) };
+      const batch = writeBatch(db);
+      batch.update(ref, { roles: nextRoles });
+      for (const [uid, rid] of Object.entries(nextMr)) {
+        if (role && rid === role.id) batch.set(doc(db, "servers", cur.id, "memberPermissions", uid), { uid, roleId: r.id, perms: r.perms, updatedAt: serverTimestamp() });
+      }
+      await batch.commit(); cur.roles = nextRoles;
+      closeM(); toast(role ? "Роль обновлена" : "Роль создана");
+    } catch (e) { toast("Ошибка: " + e.code); }
   }, "btn full");
   const del = role && mkBtn("Удалить роль", async () => {
     if (!confirm("Удалить роль «" + role.name + "»?")) return;
-    const mr = { ...(cur.mr || {}) }; for (const k in mr) if (mr[k] === role.id) delete mr[k];
-    await updateDoc(ref, { roles: (cur.roles || []).filter(x => x.id !== role.id), mr }).catch(() => {}); closeM();
+    if (cur.owner !== user.uid) return toast("Удалять определения ролей может только владелец.");
+    const mr = { ...(cur.mr || {}) }, batch = writeBatch(db); for (const k in mr) if (mr[k] === role.id) { delete mr[k]; batch.set(doc(db, "servers", cur.id, "memberPermissions", k), { uid:k, roleId:"", perms:[], updatedAt:serverTimestamp() }); }
+    batch.update(ref, { roles: (cur.roles || []).filter(x => x.id !== role.id), mr });
+    try { await batch.commit(); closeM(); } catch (e) { toast("Не удалось удалить роль: " + e.code); }
   }, "btn red");
-  modal(h("h1", { textContent: role ? "Изменить роль" : "Новая роль", style: "font-size:22px" }), nm, h("label", { textContent: "ЦВЕТ" }), cp.el, c1, c2, ok, ...(del ? [del] : []));
+  modal(h("h1", { textContent: role ? "Изменить роль" : "Новая роль", style: "font-size:22px" }), nm, h("label", { textContent: "ЦВЕТ" }), cp.el, c1, c2, c3, c4, c5, c6, h("p", { className: "ts", textContent: "Права интерфейса; для защиты от подделки их нужно также проверять в Firestore Rules." }), ok, ...(del ? [del] : []));
 }
+async function reportContent(info) {
+  if (!user) return;
+  const reason = await ask("Пожаловаться", "Кратко укажите причину жалобы.", "Спам, оскорбления, нарушение правил");
+  if (!reason) return;
+  try {
+    const data = { reporter: user.uid, reporterName: myName(), targetUid: info.targetUid || "", targetName: info.targetName || "", kind: info.kind || "profile", reason: reason.slice(0,240), status: "open", createdAt: serverTimestamp() };
+    if (cur?.id) data.serverId = cur.id;
+    if (info.messageId) data.messageId = info.messageId;
+    if (info.channelId) data.channelId = info.channelId;
+    if (info.messageText) data.messageText = info.messageText;
+    await addDoc(collection(db, "reports"), data);
+    toast("Жалоба отправлена модераторам"); closeM();
+  } catch (e) { toast("Не удалось отправить жалобу: " + (e.code || e.message)); }
+}
+async function reportPanel(sid) {
+  if (!cur || cur.id !== sid || !perm(user.uid, "mod")) return toast("Недостаточно прав");
+  let rows = [];
+  try { rows = (await getDocs(query(collection(db, "reports"), where("serverId", "==", sid), limit(100)))).docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0,50); }
+  catch (e) { return toast("Не удалось загрузить жалобы: " + e.code + ". Проверьте правила чтения коллекции reports."); }
+  const content = h("div", { style:"display:flex;flex-direction:column;gap:10px" });
+  if (!rows.length) content.append(h("p", { className:"empty", textContent:"Жалоб пока нет." }));
+  rows.forEach(r => {
+    const card = h("div", { style:"padding:10px;border:1px solid var(--bg1);border-radius:8px" });
+    card.append(h("b", { textContent:(r.status === "resolved" ? "✅ Решена · " : "🚩 Открыта · ") + (r.kind === "message" ? "Сообщение" : "Профиль") }), h("p", { textContent:"На: " + (r.targetName || r.targetUid || "неизвестно") + " · от " + (r.reporterName || r.reporter || "пользователя"), style:"margin-top:5px" }), h("p", { textContent:"Причина: " + r.reason, style:"margin-top:4px;overflow-wrap:anywhere" }));
+    if (r.messageText) card.append(h("p", { className:"qt", textContent:r.messageText }));
+    if (r.status !== "resolved") card.append(mkBtn("✓ Отметить решённой", async () => {
+      if (!perm(user.uid, "mod")) return toast("Недостаточно прав");
+      try { await updateDoc(doc(db,"reports",r.id), { status:"resolved", resolvedBy:user.uid, resolvedAt:serverTimestamp() }); await logIt("жалоба решена: " + (r.targetName || r.targetUid)); toast("Жалоба закрыта"); reportPanel(sid); }
+      catch (e) { toast("Не удалось закрыть жалобу: " + e.code); }
+    }, "btn g"));
+    content.append(card);
+  });
+  modal(h("h1", { textContent:"🚩 Жалобы участников", style:"font-size:22px;text-align:center" }), h("p", { className:"ts", textContent:"Показаны последние 50 жалоб этого сервера." }), content);
+}
+async function discoverServers() {
+  const search = h("input", { className:"in", placeholder:"Поиск публичных сообществ…", maxLength:80 });
+  const results = h("div", { style:"display:flex;flex-direction:column;gap:10px;margin-top:12px" });
+  const status = h("p", { className:"ts", textContent:"Загружаю каталог…" });
+  let rows = [];
+  const render = () => {
+    const term = search.value.trim().toLowerCase();
+    const found = rows.filter(s => (s.name || "").toLowerCase().includes(term) || (s.publicDescription || "").toLowerCase().includes(term));
+    results.replaceChildren();
+    if (!found.length) { results.append(h("p", { className:"empty", textContent:term ? "Ничего не найдено." : "Пока нет публичных сообществ. Можно опубликовать свой сервер в настройках." })); return; }
+    found.forEach(s => {
+      const card = h("div", { style:"padding:10px;border:1px solid var(--bg1);border-radius:8px" });
+      card.append(h("b", { textContent:(s.icon ? "🟣 " : "🌐 ") + s.name }), h("p", { textContent:s.publicDescription || "Без описания", style:"margin-top:5px;color:var(--mut);overflow-wrap:anywhere" }), h("p", { className:"ts", textContent:"Публичное сообщество" }));
+      const joined = servers.some(x => x.id === s.id);
+      const b = mkBtn(joined ? "✓ Вы уже участник" : "Присоединиться", async () => {
+        if (joined) { closeM(); selectServer(s.id); return; }
+        try {
+          const ticket = doc(db,"servers",s.id,"joinRequests",user.uid);
+          await setDoc(ticket, { uid:user.uid, public:true, createdAt:serverTimestamp() });
+          try { const batch = writeBatch(db); batch.update(doc(db,"servers",s.id), { members:arrayUnion(user.uid), ["names." + user.uid]:myName(), ["mr." + user.uid]:deleteField() }); batch.set(doc(db,"servers",s.id,"memberPermissions",user.uid), { uid:user.uid, roleId:"", perms:[], joinedAt:serverTimestamp() }); await batch.commit(); await deleteDoc(ticket).catch(() => {}); toast("Вы присоединились к «" + s.name + "»"); closeM(); setTimeout(() => selectServer(s.id), 300); }
+          catch (e) { await deleteDoc(ticket).catch(() => {}); throw e; }
+        } catch (e) { toast("Не удалось вступить: " + e.code + ". Проверьте Rules и доступ к публичному вступлению."); }
+      }, "btn full"); b.disabled = joined; card.append(b); results.append(card);
+    });
+  };
+  search.oninput = render;
+  modal(h("h1", { textContent:"🌐 Каталог сообществ", style:"font-size:22px;text-align:center" }), h("p", { className:"ts", textContent:"Только серверы, владельцы которых включили публичную публикацию." }), search, status, results);
+  try { rows = (await getDocs(query(collection(db,"publicDirectory"), limit(100)))).docs.map(d => ({ id:d.id, ...d.data() })); status.remove(); render(); }
+  catch (e) { status.textContent = "Каталог недоступен: " + e.code + ". Проверьте Firestore Rules: чтение публичных серверов должно быть разрешено."; }
+}
+
 function serverPanel() {
   if (!cur) return; const me = user.uid, ref = doc(db, "servers", cur.id), n = [];
   n.push(h("h1", { textContent: cur.name, style: "text-align:center;font-size:22px" }), h("p", { textContent: "Код приглашения: " + cur.id, style: "margin:10px 0 0;word-break:break-all;font-size:13px" }),
     mkBtn("📋 Копировать код", async () => { try { await navigator.clipboard.writeText(cur.id); toast("Код скопирован"); } catch { toast("Код: " + cur.id); } }),
     mkBtn("🔗 Приглашение со сроком", invitePanel));
-  if (perm(me, "mod")) n.push(mkBtn("📜 Журнал модерации", logPanel));
+  if (perm(me, "mod")) {
+    n.push(mkBtn("🚩 Жалобы участников", () => reportPanel(cur.id)));
+    n.push(mkBtn("📜 Журнал модерации", logPanel));
+    n.push(mkBtn("🛡 Настройки автомодерации", async () => {
+      const cfg = cur.autoMod || {};
+      const anti = h("input", { type: "checkbox", checked: cfg.antiSpam !== false });
+      const links = h("input", { type: "checkbox", checked: !!cfg.blockLinks });
+      const words = h("textarea", { className: "in", rows: 3, placeholder: "Запрещённые слова через запятую", value: (cfg.filterWords || []).join(", ") });
+      const save = mkBtn("Сохранить автомодерацию", async () => { const next = { antiSpam: anti.checked, blockLinks: links.checked, filterWords: words.value.split(",").map(x=>x.trim()).filter(Boolean).slice(0,30) }; try { await updateDoc(ref, { autoMod: next }); cur.autoMod = next; closeM(); toast("Настройки автомодерации сохранены"); } catch(e) { toast("Ошибка: " + e.code); } }, "btn full");
+      modal(h("h1", { textContent: "🛡 Автомодерация", style: "font-size:22px" }), h("label", {}, anti, " Антиспам (не больше 5 сообщений за 8 секунд)"), h("label", { style: "display:block;margin-top:12px" }, links, " Запрещать ссылки"), h("label", { style: "display:block;margin-top:12px" }, "Запрещённые слова"), words, h("p", { className: "ts", textContent: "Проверка в браузере помогает от случайного спама, но не заменяет серверные Cloud Functions / Firestore Rules." }), save);
+    }));
+  }
   n.push(h("div", { className: "sec" }, h("span", { textContent: "УЧАСТНИКИ" })));
   Object.entries(cur.names || {}).forEach(([uid, nm]) => n.push(mkBtn(nameOf(uid, nm) + (uid === cur.owner ? " 👑" : ""), () => showProfile(uid, nm))));
   if (perm(me, "roles")) {
     n.push(h("div", { className: "sec" }, h("span", { textContent: "РОЛИ (нажмите, чтобы изменить)" })));
-    (cur.roles || []).forEach(r => { const c = h("span", { className: "rl", textContent: r.name + (r.perms.length ? " ⚙" : ""), style: `color:${r.color};border-color:${r.color}` }); c.onclick = () => newRole(r); n.push(c); });
-    n.push(mkBtn("➕ Создать роль", () => newRole()));
+    (cur.roles || []).forEach(r => { const c = h("span", { className: "rl", textContent: r.name + (r.perms.length ? " ⚙" : ""), style: `color:${r.color};border-color:${r.color}` }); if (cur.owner === me) c.onclick = () => newRole(r); n.push(c); });
+    if (cur.owner === me) n.push(mkBtn("➕ Создать роль", () => newRole()));
   }
   const bans = Object.entries(cur.bn || {});
   if (bans.length && perm(me, "mod")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "БАН-ЛИСТ" }))); bans.forEach(([uid, nm]) => n.push(mkBtn("Разбанить " + nm, () => { logIt("разбан: " + nm); return updateDoc(ref, { ["bn." + uid]: deleteField() }).then(() => { toast("Разбанен"); closeM(); }); }))); }
-  if (perm(me, "roles")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "КАНАЛЫ (доступ по ролям)" }))); allChans.forEach(ch => n.push(mkBtn((ch.roles?.length ? "🔒 " : "# ") + ch.name, () => channelModal(ch)))); }
+  if (perm(me, "channels")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "КАНАЛЫ (доступ по ролям)" }))); allChans.forEach(ch => n.push(mkBtn((ch.type === "voice" ? "🔊 " : (ch.roles?.length ? "🔒 " : "# ")) + ch.name, () => channelModal(ch)))); }
   n.push(h("div", { className: "sec" }, h("span", { textContent: "СЕРВЕР" })));
-  if (cur.owner !== me) n.push(mkBtn("🚪 Покинуть сервер", () => confirm("Покинуть сервер?") && updateDoc(ref, { members: arrayRemove(me) }).then(closeM), "btn red"));
+  if (cur.owner !== me) n.push(mkBtn("🚪 Покинуть сервер", async () => { if (!confirm("Покинуть сервер?")) return; try { await updateDoc(ref, { members: arrayRemove(me), ["names." + me]: deleteField(), ["mr." + me]: deleteField() }); await deleteDoc(doc(db, "servers", cur.id, "memberPermissions", me)).catch(() => {}); closeM(); } catch (e) { toast("Не удалось покинуть сервер: " + e.code); } }, "btn red"));
   if (cur.owner === me) {
-    const sid = cur.id, setIcon = v => updateDoc(doc(db, "servers", sid), { icon: v }).then(() => { toast("Готово"); closeM(); }).catch(e => toast("Ошибка: " + e.code));
+    const sid = cur.id;
+    n.push(mkBtn((cur.publicListing ? "🌐 Скрыть из каталога" : "🌐 Опубликовать в каталоге"), async () => {
+      const next = !cur.publicListing;
+      const desc = await ask("Описание сообщества", "Коротко расскажите о сервере (до 180 символов).", "Например: сообщество игроков Gorilla Tag", cur.publicDescription || "");
+      if (desc === null) return;
+      try {
+        await updateDoc(ref, { publicListing: next, publicDescription: desc.slice(0,180) });
+        if (next) await setDoc(doc(db, "publicDirectory", sid), { name:cur.name, icon:cur.icon || "", publicDescription:desc.slice(0,180), updatedAt:serverTimestamp() });
+        else await deleteDoc(doc(db, "publicDirectory", sid)).catch(() => {});
+        cur.publicListing = next; cur.publicDescription = desc.slice(0,180); toast(next ? "Сервер опубликован в каталоге" : "Сервер скрыт из каталога"); serverPanel();
+      } catch (e) { toast("Не удалось изменить каталог: " + e.code); }
+    }));
+    const setIcon = async v => { try { await updateDoc(doc(db, "servers", sid), { icon: v }); if (cur.publicListing) await updateDoc(doc(db, "publicDirectory", sid), { icon:v, updatedAt:serverTimestamp() }); toast("Готово"); closeM(); } catch(e) { toast("Ошибка: " + e.code); } };
     n.push(mkBtn("🖼 Значок сервера", () => { const f = h("input", { type: "file", accept: "image/*", style: "position:fixed;left:-9999px;opacity:0" }); document.body.append(f); f.onchange = async () => { const file = f.files[0]; f.remove(); if (!file) return; try { setIcon(await square(file)); } catch { toast("Не удалось обработать фото"); } }; f.click(); }));
     if (cur.icon) n.push(mkBtn("Убрать значок", () => setIcon("")));
   }
@@ -751,32 +956,51 @@ function newGroup() {
   const okf = friends.filter(f => f.status === "accepted" && !f.group);
   if (!okf.length) return toast("Сначала добавьте друзей");
   const t = h("input", { className: "in", placeholder: "Название группы", maxLength: 30 });
-  const boxes = okf.map(f => { const u = f.users.find(x => x !== user.uid), l = chk("var(--txt)", f.names[u] || "Без имени"); l.u = u; l.n = f.names[u] || "Без имени"; return l; });
+  const game = h("input", { className: "in", placeholder: "Игра (необязательно): Roblox, Gorilla Tag…", maxLength: 40, style: "margin-top:8px" });
+  const boxes = okf.map(f => { const u = f.users.find(x => x !== user.uid), l = chk("var(--txt)", f.names[u] || "Без имени"); l.u = u; l.n = f.names[u] || "Без имени"; l.fid = f.id; return l; });
   const go = mkBtn("Создать", async () => {
     const sel = boxes.filter(b => b.i.checked); if (!t.value.trim()) return toast("Введите название группы"); if (!sel.length) return toast("Отметьте хотя бы одного друга");
-    const names = { [user.uid]: myName() }; sel.forEach(b => names[b.u] = b.n);
-    try { await setDoc(doc(collection(db, "friends")), { users: [user.uid, ...sel.map(b => b.u)], names, status: "accepted", group: true, title: t.value.trim(), from: user.uid }); closeM(); toast("Группа создана"); } catch (e) { toast("Ошибка: " + e.code); }
+    const names = { [user.uid]: myName() };
+    try {
+      const groupRef = doc(collection(db, "friends"));
+      await setDoc(groupRef, { users:[user.uid], names, status:"accepted", group:true, kind:game.value.trim() ? "game" : "chat", game:game.value.trim(), title:t.value.trim(), from:user.uid, createdAt:serverTimestamp() });
+      for (const b of sel) {
+        const ticket = doc(db, "friends", groupRef.id, "joinRequests", b.u);
+        await setDoc(ticket, { uid:b.u, by:user.uid, friendId:b.fid, createdAt:serverTimestamp() });
+        await updateDoc(groupRef, { users:arrayUnion(b.u), ["names." + b.u]:b.n });
+        await deleteDoc(ticket).catch(() => {});
+      }
+      closeM(); toast(game.value.trim() ? "Игровая группа создана" : "Группа создана");
+    } catch (e) { toast("Не удалось полностью создать группу: " + (e.code || e.message) + ". Если группа появилась частично, создай новую после проверки дружбы."); }
   }, "btn full");
-  modal(h("h1", { textContent: "Новая группа", style: "font-size:22px" }), t, ...boxes, go);
+  modal(h("h1", { textContent: "🎮 Новая группа", style: "font-size:22px" }), t, game, h("p", { className: "ts", textContent: "Укажи игру, чтобы создать игровую группу; участники смогут общаться в общем чате." }), ...boxes, go);
 }
 function addToGroup(f) {
-  const cand = friends.filter(x => x.status === "accepted" && !x.group).map(x => { const u = x.users.find(y => y !== user.uid); return { u, n: x.names[u] }; }).filter(c => !f.users.includes(c.u));
+  const cand = friends.filter(x => x.status === "accepted" && !x.group).map(x => { const u = x.users.find(y => y !== user.uid); return { u, n: x.names[u], fid:x.id }; }).filter(c => !f.users.includes(c.u));
   const members = h("p", { textContent: "Сейчас в группе: " + Object.values(f.names).join(", "), style: "margin:8px 0 0;font-size:13px" });
   if (!cand.length) return modal(h("h1", { textContent: f.title, style: "font-size:22px" }), members, h("p", { textContent: "Все ваши друзья уже в этой группе.", style: "margin-top:10px" }));
   const boxes = cand.map(c => { const l = chk("var(--txt)", c.n || "Без имени"); l.c = c; return l; });
   const go = mkBtn("Добавить", async () => {
     const sel = boxes.filter(b => b.i.checked); if (!sel.length) return toast("Выберите друзей");
-    const up = { users: arrayUnion(...sel.map(b => b.c.u)) }; sel.forEach(b => up["names." + b.c.u] = b.c.n);
-    try { await updateDoc(doc(db, "friends", f.id), up); closeM(); toast("Добавлено"); } catch (e) { toast("Ошибка: " + e.code); }
+    try {
+      for (const b of sel) {
+        const ticket = doc(db, "friends", f.id, "joinRequests", b.c.u);
+        await setDoc(ticket, { uid:b.c.u, by:user.uid, friendId:b.c.fid, createdAt:serverTimestamp() });
+        await updateDoc(doc(db, "friends", f.id), { users:arrayUnion(b.c.u), ["names." + b.c.u]:b.c.n });
+        await deleteDoc(ticket).catch(() => {});
+      }
+      closeM(); toast("Добавлено");
+    } catch (e) { toast("Не удалось добавить участника: " + e.code); }
   }, "btn full");
   modal(h("h1", { textContent: "Добавить в «" + f.title + "»", style: "font-size:22px" }), members, ...boxes, go);
 }
 function channelModal(ch) {
+  if (!perm(user.uid, "channels") && cur.owner !== user.uid) return toast("Нужна роль с правом управления каналами");
   const rs = cur.roles || [], ref = doc(db, "servers", cur.id, "channels", ch.id);
   const boxes = rs.map(r => { const i = h("input", { type: "checkbox", checked: !!ch.roles?.includes(r.id) }), l = lbl(r.color, i, r.name); l.r = r.id; l.i = i; return l; });
   const save = mkBtn("Сохранить", () => updateDoc(ref, { roles: boxes.filter(b => b.i.checked).map(b => b.r) }).then(() => { toast("Готово"); closeM(); }).catch(e => toast(e.code)), "btn full");
   const del = mkBtn("Удалить канал", () => allChans.length > 1 ? confirm("Удалить канал «" + ch.name + "»?") && deleteDoc(ref).then(closeM) : toast("Нельзя удалить последний канал"), "btn red");
-  modal(h("h1", { textContent: "# " + ch.name, style: "font-size:22px" }), h("p", { textContent: rs.length ? "Отметьте роли, которым открыт канал. Если ничего не отмечено, канал доступен всем." : "Сначала создайте роли.", style: "margin:8px 0 0;font-size:13px" }), ...boxes, save, del);
+  modal(h("h1", { textContent: (ch.type === "voice" ? "🔊 " : "# ") + ch.name, style: "font-size:22px" }), h("p", { textContent: rs.length ? "Отметьте роли, которым открыт канал. Если ничего не отмечено, канал доступен всем." : "Сначала создайте роли.", style: "margin:8px 0 0;font-size:13px" }), ...boxes, save, del);
 }
 const msgCard = m => h("div", { style: "margin-top:12px;padding:8px;background:var(--bg1);border-radius:6px" }, h("div", { className: "ts", textContent: nameOf(m.uid, m.name) + " · " + fmt(m.createdAt) }), h("div", { textContent: m.text || (m.img ? "📷 Фото" : m.vid ? "🎬 Видео" : m.aud ? "🎤 Голосовое" : ""), style: "white-space:pre-wrap;overflow-wrap:anywhere" }));
 $("pins").onclick = async () => {
@@ -793,10 +1017,25 @@ $("srch").onclick = () => {
 };
 
 /* ---------- CALLS (WebRTC) ---------- */
-// Если звонок не соединяется в некоторых сетях, впишите сюда TURN-сервер:
-// const TURN = { urls: "turn:адрес:порт", username: "логин", credential: "пароль" };
-const TURN = null;
-const ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }, ...(TURN ? [TURN] : [])] };
+// Metered Open Relay TURN. Замените обе строки ниже на НОВЫЕ данные из Metered.
+// Не публикуйте их в открытом репозитории: любой посетитель сайта сможет увидеть их.
+const TURN_USERNAME = "4f2c38baa26abfde1e62336fbd5e220f1d56";
+const TURN_CREDENTIAL = "e/PW9ZgEVzg2w68G";
+const TURN_CONFIGURED = Boolean(
+  TURN_USERNAME && TURN_CREDENTIAL &&
+  !TURN_USERNAME.startsWith("PASTE_") &&
+  !TURN_CREDENTIAL.startsWith("PASTE_")
+);
+const TURN_SERVERS = TURN_CONFIGURED ? [
+  { urls: "turn:global.relay.metered.ca:80", username: TURN_USERNAME, credential: TURN_CREDENTIAL },
+  { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: TURN_USERNAME, credential: TURN_CREDENTIAL },
+  { urls: "turn:global.relay.metered.ca:443", username: TURN_USERNAME, credential: TURN_CREDENTIAL },
+  { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: TURN_USERNAME, credential: TURN_CREDENTIAL }
+] : [];
+const ICE = { iceServers: [
+  { urls: ["stun:stun.relay.metered.ca:80", "stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  ...TURN_SERVERS
+] };
 let shareStream = null, pc = null, callId = null, callName = "", localStream = null, callUnsubs = [], iceQ = [], iceBuf = [], ringT;
 const cref = id => doc(db, "calls", id);
 let callInfo = null, callWhy = "";
@@ -944,7 +1183,7 @@ function renderHome() {
   if (inc.length) { c.append(sec("ЗАПРОСЫ — " + inc.length)); inc.forEach(f => row(f, f.names[f.from], [["✓", () => updateDoc(doc(db, "friends", f.id), { status: "accepted" })], ["✗", () => del(f)]])); }
   if (out.length) { c.append(sec("ОТПРАВЛЕНО")); out.forEach(f => row(f, f.names[other(f)] + " (ждёт ответа)", [["✗", () => del(f)]])); }
   const ok = friends.filter(f => f.status === "accepted" && !f.group), gr = friends.filter(f => f.group);
-  if (gr.length) { c.append(sec("ГРУППЫ")); gr.forEach(f => row(f, (unread(f.id, f) && !(mpath && mpath[1] === f.id) ? "● " : "") + "👥 " + f.title, [["➕", () => addToGroup(f)], ["💬", () => { markSeen(f.id); openChat(["friends", f.id, "messages"], "👥 " + f.title, "Написать в группу", false, "Начало группового чата. Скажите привет!"); $("app").classList.remove("nav"); renderHome(); }], ["🚪", () => confirm("Выйти из группы?") && updateDoc(doc(db, "friends", f.id), { users: arrayRemove(user.uid) }).then(() => { if (mpath && mpath[1] === f.id) goHome(); })]])); }
+  if (gr.length) { c.append(sec("ГРУППЫ")); gr.forEach(f => row(f, (unread(f.id, f) && !(mpath && mpath[1] === f.id) ? "● " : "") + ((f.kind === "game" || f.game) ? "🎮 " + (f.game ? f.game + " · " : "") : "👥 ") + f.title, [["➕", () => addToGroup(f)], ["💬", () => { markSeen(f.id); openChat(["friends", f.id, "messages"], "👥 " + f.title, "Написать в группу", false, "Начало группового чата. Скажите привет!"); $("app").classList.remove("nav"); renderHome(); }], ["🚪", () => confirm("Выйти из группы?") && updateDoc(doc(db, "friends", f.id), { users: arrayRemove(user.uid) }).then(() => { if (mpath && mpath[1] === f.id) goHome(); })]])); }
   c.append(sec("ДРУЗЬЯ — " + ok.length));
   if (!ok.length) c.append(h("div", { className: "empty", textContent: "Пока никого. Нажмите «Добавить друга»." }));
   ok.forEach(f => { const n = f.names[other(f)]; const b = btn((isOn(other(f)) ? "🟢 " : "⚪ ") + n, () => { markSeen(f.id); openChat(["friends", f.id, "messages"], "@ " + n, "Написать " + n, false, "Это начало вашей переписки. Скажите привет!"); $("app").classList.remove("nav"); renderHome(); }); if (mpath && mpath[1] === f.id) b.classList.add("on"); else if (unread(f.id, f)) b.classList.add("unr"); c.append(b); });
@@ -985,17 +1224,33 @@ async function createServer() {
   } catch (e) { toast("Ошибка: " + e.code); }
 }
 async function joinServer() {
-  const code = await ask("Присоединиться к серверу", "Вставьте код приглашения.", "Код приглашения"); if (!code) return;
+  const code = await ask("Присоединиться к серверу", "Вставьте код приглашения или ID публичного сервера.", "Код приглашения"); if (!code) return;
   try {
-    let sid = code, inv = null; const iv = await getDoc(doc(db, "invites", code)).catch(() => null);
-    if (iv && iv.exists()) { inv = iv.data(); if (inv.exp && inv.exp < Date.now()) return toast("Срок приглашения истёк"); if (inv.max && inv.n >= inv.max) return toast("Приглашение уже использовано"); sid = inv.s; }
-    const ref = doc(db, "servers", sid), s = await getDoc(ref);
-    if (!s.exists()) return toast("Сервер с таким кодом не найден");
-    if (s.data().bn?.[user.uid]) return toast("Вы забанены на этом сервере");
-    await updateDoc(ref, { members: arrayUnion(user.uid), ["names." + user.uid]: myName() });
-    if (inv && !(s.data().members || []).includes(user.uid)) updateDoc(doc(db, "invites", code), { n: (inv.n || 0) + 1 }).catch(() => {});
-    toast("Вы присоединились к «" + s.data().name + "»"); setTimeout(() => selectServer(sid), 500);
-  } catch (e) { toast("Ошибка: " + e.code); }
+    let sid = code, inv = null;
+    const iv = await getDoc(doc(db, "invites", code)).catch(() => null);
+    if (iv && iv.exists()) {
+      inv = iv.data();
+      if (inv.exp && inv.exp < Date.now()) return toast("Срок приглашения истёк");
+      if (inv.max && inv.n >= inv.max) return toast("Приглашение уже использовано");
+      sid = inv.s;
+    } else {
+      // Direct server IDs are accepted only for public servers; private servers require a real invite.
+      const publicServer = await getDoc(doc(db, "publicDirectory", sid));
+      if (!publicServer.exists()) return toast("Для закрытого сервера нужен код приглашения");
+      if (servers.some(x => x.id === sid)) { toast("Вы уже участник этого сервера"); return selectServer(sid); }
+    }
+    const ticket = doc(db, "servers", sid, "joinRequests", user.uid);
+    await setDoc(ticket, inv ? { uid:user.uid, code, createdAt:serverTimestamp() } : { uid:user.uid, public:true, createdAt:serverTimestamp() });
+    try {
+      const batch = writeBatch(db), ref = doc(db, "servers", sid);
+      batch.update(ref, { members: arrayUnion(user.uid), ["names." + user.uid]: myName(), ["mr." + user.uid]: deleteField() });
+      batch.set(doc(db, "servers", sid, "memberPermissions", user.uid), { uid:user.uid, roleId:"", perms:[], joinedAt:serverTimestamp() });
+      await batch.commit(); await deleteDoc(ticket).catch(() => {});
+      if (inv) updateDoc(doc(db, "invites", code), { n: (inv.n || 0) + 1, ["usedBy." + user.uid]: true }).catch(() => {});
+      const joined = await getDoc(ref).catch(() => null), serverName = joined?.exists() ? joined.data().name : "сервер";
+      toast("Вы присоединились к «" + serverName + "»"); setTimeout(() => selectServer(sid), 500);
+    } catch (e) { await deleteDoc(ticket).catch(() => {}); throw e; }
+  } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
 }
 const logIt = t => cur && addDoc(collection(db, "servers", cur.id, "log"), { t: Date.now(), by: user.uid, name: myName(), text: t }).catch(() => {});
 async function logPanel() {
@@ -1109,14 +1364,14 @@ async function shareGroupScreen() {
     toast("Показ экрана отправляется участникам"); vrender();
   } catch (e) { if (e.name !== "NotAllowedError") toast("Не удалось показать экран: " + (e.message || e.name)); }
 }
-async function joinVoice(sid) {
-  if (vc) return toast("Вы уже в голосовом канале"); if (pc) return toast("Сначала завершите личный звонок");
+async function joinVoice(sid, channelId = "__general__") {
+  if (vc) return toast("Сначала выйдите из текущей голосовой комнаты"); if (pc) return toast("Сначала завершите личный звонок");
   const pttEnabled = LS.get("voice_ptt") === "1"; let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); } catch (e) { return toast("Нет доступа к микрофону: " + mediaErr(e)); }
-  const t = Date.now(), mine = doc(db, "servers", sid, "voice", user.uid); if (stream.getAudioTracks()[0]) stream.getAudioTracks()[0].enabled = !pttEnabled; vc = { sid, t, stream, peers: {}, unsubs: [], parts: [], hb: null, deafened: false, shareStream: null, ptt: pttEnabled, noiseSuppression: true };
+  const t = Date.now(), mine = doc(db, "servers", sid, "voice", user.uid); if (stream.getAudioTracks()[0]) stream.getAudioTracks()[0].enabled = !pttEnabled; vc = { sid, channelId, t, stream, peers: {}, unsubs: [], parts: [], hb: null, deafened: false, shareStream: null, ptt: pttEnabled, noiseSuppression: true };
   try {
-    await setDoc(mine, { name: myName(), t, hb: t });
+    await setDoc(mine, { name: myName(), t, hb: t, channelId });
     const old = await getDocs(collection(db, "servers", sid, "voice", user.uid, "sig")); old.docs.forEach(d => deleteDoc(d.ref).catch(() => {}));
-    const others = (await getDocs(collection(db, "servers", sid, "voice"))).docs.filter(d => d.id !== user.uid && vlive(d.data()));
+    const others = (await getDocs(collection(db, "servers", sid, "voice"))).docs.filter(d => d.id !== user.uid && vlive(d.data()) && (d.data().channelId || "__general__") === channelId);
     if (!others.length && mpath?.[0] === "servers" && mpath[1] === sid) {
       vc.msg = await addDoc(collection(db, ...mpath), { text: "🔊 " + myName() + " начал(а) голосовой звонок", sys: true, uid: user.uid, name: myName(), createdAt: serverTimestamp() });
       updateDoc(doc(db, "servers", sid, "channels", mpath[3]), { last: serverTimestamp(), lastBy: user.uid }).catch(() => {});
@@ -1124,7 +1379,7 @@ async function joinVoice(sid) {
   } catch (e) { stream.getTracks().forEach(x => x.stop()); vc = null; return toast("Ошибка: " + e.code); }
   vc.hb = setInterval(() => updateDoc(mine, { hb: Date.now() }).catch(() => {}), 25000);
   vc.unsubs.push(onSnapshot(collection(db, "servers", sid, "voice"), snap => {
-    if (!vc || vc.sid !== sid) return; const live = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(vlive); vc.parts = live; vrender();
+    if (!vc || vc.sid !== sid) return; const live = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(vlive).filter(v => (v.channelId || "__general__") === channelId); vc.parts = live; vrender();
     const ids = new Set(live.map(x => x.id)); Object.keys(vc.peers).forEach(u => !ids.has(u) && vclose(u));
     live.forEach(async d => {
       if (d.id === user.uid || vc?.peers[d.id]) return;
@@ -1134,6 +1389,8 @@ async function joinVoice(sid) {
   vc.unsubs.push(onSnapshot(collection(db, "servers", sid, "voice", user.uid, "sig"), snap => snap.docChanges().forEach(async ch => {
     if (ch.type !== "added") return; const d = ch.doc.data(); deleteDoc(ch.doc.ref).catch(() => {}); if (!vc || vc.sid !== sid) return;
     try {
+      const peerPresence = await getDoc(doc(db, "servers", sid, "voice", d.from));
+      if (!peerPresence.exists() || (peerPresence.data().channelId || "__general__") !== channelId) return;
       const data = JSON.parse(d.data);
       if (d.type === "offer") { let p = vc.peers[d.from]; if (!p) p = vpeer(d.from); await p.pc.setRemoteDescription(data); await vflush(p); const a = await p.pc.createAnswer(); await p.pc.setLocalDescription(a); vsig(d.from, "answer", { type: a.type, sdp: a.sdp }); }
       else { const p = vc.peers[d.from]; if (!p) return; if (d.type === "answer") { await p.pc.setRemoteDescription(data).catch(() => {}); await vflush(p); } else if (p.pc.remoteDescription) await p.pc.addIceCandidate(data).catch(() => {}); else p.buf.push(data); }
@@ -1142,11 +1399,11 @@ async function joinVoice(sid) {
   vrender();
 }
 function leaveVoice() {
-  const v = vc; if (!v) return; vc = null; clearInterval(v.hb);
+  const v = vc; if (!v) return Promise.resolve(); vc = null; clearInterval(v.hb);
   if (v.shareStream) v.shareStream.getTracks().forEach(t => t.stop());
   if (v.msg && !v.parts.some(d => d.id !== user.uid && vlive(d))) updateDoc(v.msg, { text: "🔊 Голосовой звонок завершён · " + callFmt(Date.now() - v.t) }).catch(() => {}); v.unsubs.forEach(f => f());
   Object.values(v.peers).forEach(p => { try { p.pc.close(); } catch {} if (p.el) { p.el.srcObject = null; p.el.remove(); } if (p.video) p.video.remove(); if (p.audioCtx) p.audioCtx.close().catch(() => {}); if (p.raf) cancelAnimationFrame(p.raf); }); v.stream.getTracks().forEach(x => x.stop());
-  deleteDoc(doc(db, "servers", v.sid, "voice", user.uid)).catch(() => {}); gv.style.display = "none";
+  const removePresence = deleteDoc(doc(db, "servers", v.sid, "voice", user.uid)).catch(() => {}); gv.style.display = "none"; return removePresence;
 }
 let pttKeyDown = false;
 addEventListener("keydown", e => { if (!vc?.ptt || e.code !== "Space" || e.repeat) return; const tag = e.target?.tagName?.toLowerCase(); if (["input", "textarea", "select"].includes(tag) || e.target?.isContentEditable) return; e.preventDefault(); pttKeyDown = true; const t = vc?.stream.getAudioTracks()[0]; if (t) t.enabled = true; });
@@ -1157,8 +1414,8 @@ function vbanUpdate() {
   const here = vw && mpath?.[0] === "servers" && mpath[1] === vw.sid, live = vw ? vw.parts.filter(vlive) : [], on = here ? live : [];
   const vg = $("vgrp"); if (vg) vg.textContent = "🔊" + (vw && cur && vw.sid === cur.id && live.length ? " " + live.length : "");
   if (!on.length) { vban.style.display = "none"; vban.dataset.k = ""; return; }
-  const key = on.map(x => x.id).join() + (vc ? "1" : "0"); if (vban.dataset.k === key && vban.style.display === "flex") return; vban.dataset.k = key; const b = h("button", { className: "btn", textContent: vc ? "Вы в звонке" : "Присоединиться", style: "padding:6px 12px" }); b.disabled = !!vc; b.onclick = () => joinVoice(vw.sid);
-  vban.replaceChildren(h("span", { style: "flex:1", textContent: "🔊 Идёт голосовой звонок: " + on.map(x => x.name || "?").join(", ") }), b); vban.style.display = "flex";
+  const key = on.map(x => x.id).join() + (vc ? "1" : "0"); if (vban.dataset.k === key && vban.style.display === "flex") return; vban.dataset.k = key; const b = h("button", { className: "btn", textContent: vc ? "Вы в голосе" : "Присоединиться", style: "padding:6px 12px" }); b.disabled = !!vc; b.onclick = () => joinVoice(vw.sid, on[0]?.channelId || "__general__");
+  vban.replaceChildren(h("span", { style: "flex:1", textContent: "🔊 Голосовая комната: " + (allChans.find(c => c.id === on[0]?.channelId)?.name || "Общая") + " · " + on.map(x => x.name || "?").join(", ") }), b); vban.style.display = "flex";
 }
 function watchVoice(sid) {
   if (vw && vw.sid === sid) return; vw && vw.un(); vw = null;
@@ -1166,12 +1423,15 @@ function watchVoice(sid) {
   vbanUpdate();
 }
 setInterval(vbanUpdate, 3000);
-{ const vg = h("button", { className: "ib", id: "vgrp", title: "Голосовой канал сервера (для всех)", textContent: "🔊" }); $("vvid").after(vg); vg.onclick = () => vc ? toast("Вы уже в голосовом канале") : mpath?.[0] === "servers" ? joinVoice(mpath[1]) : toast("Откройте канал сервера"); }
+{ const vg = h("button", { className: "ib", id: "vgrp", title: "Голосовой канал сервера (для всех)", textContent: "🔊" }); $("vvid").after(vg); vg.onclick = () => vc ? toast("Вы уже в голосовой комнате") : mpath?.[0] === "servers" ? joinVoice(mpath[1], chans.find(c => c.type === "voice")?.id || "__general__") : toast("Откройте сервер"); }
 async function createChannel() {
   if (!cur) return;
-  const name = (await ask("Создать канал", "Название канала.", "новый-канал") || "").toLowerCase().replace(/\s+/g, "-"); if (!name) return;
-  const category = (await ask("Категория канала", "Например: ОБЩЕЕ, ИГРЫ. Оставьте пустым для канала без категории.", "Общее") || "").trim().slice(0, 30);
-  try { await addDoc(collection(db, "servers", cur.id, "channels"), { name, category, type: "text", createdAt: serverTimestamp() }); } catch (e) { toast("Ошибка: " + e.code); }
+  if (!perm(user.uid, "channels") && cur.owner !== user.uid) return toast("Нужна роль с правом управления каналами");
+  const type = (await ask("Тип канала", "Введите text для текстового канала или voice для голосовой комнаты.", "text") || "text").trim().toLowerCase();
+  if (!["text", "voice"].includes(type)) return toast("Тип должен быть text или voice");
+  const name = (await ask(type === "voice" ? "Создать голосовую комнату" : "Создать текстовый канал", "Название канала.", type === "voice" ? "Общий голос" : "новый-канал") || "").trim().toLowerCase().replace(/\s+/g, "-").slice(0, 40); if (!name) return;
+  const category = (await ask("Категория канала", "Например: ОБЩЕЕ, ИГРЫ. Оставьте пустым для канала без категории.", type === "voice" ? "Голосовые" : "Общее") || "").trim().slice(0, 30);
+  try { await addDoc(collection(db, "servers", cur.id, "channels"), { name, category, type, createdAt: serverTimestamp() }); toast(type === "voice" ? "Голосовая комната создана" : "Канал создан"); } catch (e) { toast("Ошибка: " + e.code); }
 }
 $("dp").style.whiteSpace = "pre-line";
 </script>
