@@ -721,8 +721,16 @@ $("srch").onclick = () => {
 
 /* ---------- CALLS (WebRTC) ---------- */
 // Если звонок не соединяется в некоторых сетях, впишите сюда TURN-сервер:
-// const TURN = { urls: "turn:адрес:порт", username: "логин", credential: "пароль" };
-const TURN = null;
+const TURN = {
+  urls: [
+    "turn:global.relay.metered.ca:80",
+    "turn:global.relay.metered.ca:80?transport=tcp",
+    "turn:global.relay.metered.ca:443",
+    "turns:global.relay.metered.ca:443?transport=tcp"
+  ],
+  username: "f619cdfa154e7f930792457b",
+  credential: "tuXg/g8TJWQdnTcR"
+};
 const ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }, ...(TURN ? [TURN] : [])] };
 let shareStream = null, pc = null, callId = null, callName = "", localStream = null, callUnsubs = [], iceQ = [], iceBuf = [], ringT;
 const cref = id => doc(db, "calls", id);
