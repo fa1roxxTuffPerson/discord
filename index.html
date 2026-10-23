@@ -86,6 +86,21 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 .burger{display:inline-block;margin-right:8px;font-size:20px}
 #inp,input.in{font-size:16px}.m .del{display:block;top:0;opacity:.7}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+.t code{background:var(--bg1);padding:1px 5px;border-radius:4px;font:13px/1.4 ui-monospace,Consolas,monospace}
+.t pre{background:var(--bg1);border:1px solid var(--bg2);border-radius:6px;padding:8px 10px;margin:4px 0;overflow-x:auto;white-space:pre;font:13px/1.4 ui-monospace,Consolas,monospace}
+.t pre code{padding:0;background:none}.t a{color:#00a8fc;text-decoration:none}.t a:hover{text-decoration:underline}
+.mn{background:rgba(88,101,242,.3);color:#c9cdfb;border-radius:3px;padding:0 2px;cursor:pointer;font-weight:500}
+.m.ment{background:rgba(250,166,26,.1);box-shadow:inset 3px 0 #faa61a}
+[data-theme=light]{--bg1:#e3e5e8;--bg2:#f2f3f5;--bg3:#fff;--hover:#e8e9eb;--txt:#2e3338;--mut:#5c5e66}
+[data-theme=light] #me{background:#ebedef}
+#acp{position:fixed;z-index:50;background:var(--bg2);border:1px solid var(--bg1);border-radius:8px;box-shadow:0 4px 16px #0006;max-height:220px;overflow:auto;display:none;min-width:180px}
+#acp button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 12px;cursor:pointer}
+#acp button.on,#acp button:hover{background:var(--hover)}
+.qt{cursor:pointer}.m.flash{background:rgba(88,101,242,.25)}
+.pl button{display:block;width:100%;max-width:360px;text-align:left;margin-top:4px;position:relative;background:var(--bg1);border:0;border-radius:4px;padding:6px 10px;cursor:pointer;overflow:hidden}
+.pl .f{position:absolute;inset:0 auto 0 0;background:rgba(88,101,242,.35)}.pl span{position:relative}.pl .me{outline:1px solid var(--acc)}
+#gv{position:fixed;right:12px;bottom:84px;background:var(--bg2);border:1px solid var(--bg1);border-radius:10px;padding:10px 12px;z-index:40;min-width:210px;display:none;box-shadow:0 4px 16px #0006}
+#gv b{display:block;margin-bottom:6px}#gv .pp{font-size:14px;padding:2px 0}#gv .ib{margin-right:4px}
 </style>
 </head>
 <body>
@@ -149,12 +164,15 @@ const app = initializeApp({
 const auth = getAuth(app), db = getFirestore(app);
 setPersistence(auth, browserLocalPersistence).catch(() => {}); // вход сохраняется после закрытия браузера
 const $ = id => document.getElementById(id);
+const LS = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const applyLook = () => { document.documentElement.dataset.theme = LS.get("theme") || "dark"; document.body.style.fontSize = (LS.get("fs") || "15") + "px"; };
+applyLook();
 queueMicrotask(() => { $("burger").onclick = () => $("app").classList.toggle("nav"); $("bd").onclick = () => $("app").classList.remove("nav"); });
 const h = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach(k => e.append(k)); return e; };
 const ucache = {};
 const colors = ["#5865f2","#eb459e","#f0b232","#23a55a","#00a8fc","#ed4245","#9b59b6"];
 const colorOf = s => colors[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length];
-const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url(${u.avatar})`; a.style.backgroundSize = "cover"; a.style.backgroundPosition = "center"; a.classList.add("img"); } else a.style.background = colorOf(name); return a; };
+const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url("${u.avatar}")`; a.style.backgroundSize = "cover"; a.style.backgroundPosition = "center"; a.classList.add("img"); } else a.style.background = colorOf(name); return a; };
 const toast = t => { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = "none", 2200); };
 
 let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null, allChans = [], curList = [];
@@ -218,7 +236,7 @@ function renderRail() {
   const inc = friends.filter(f => f.status === "pending" && f.from !== user.uid).length + friends.filter(f => f.status === "accepted" && unread(f.id, f) && !(mpath && mpath[1] === f.id)).length;
   const hb = h("button", { className: "sv" + (home ? " on" : ""), textContent: inc ? "💬" + inc : "💬", title: "Друзья и личные сообщения" }); hb.onclick = goHome;
   r.append(hb, h("div", { className: "sep" }));
-  servers.forEach(s => { const b = h("button", { className: "sv" + (!home && cur?.id === s.id ? " on" : "") + (s.lastCh && unread(s.lastCh, s) && !(cur?.id === s.id && curCh === s.lastCh) ? " unr" : ""), textContent: s.name.slice(0, 2).toUpperCase(), title: s.name }); b.onclick = () => selectServer(s.id); r.append(b); });
+  servers.forEach(s => { const b = h("button", { className: "sv" + (!home && cur?.id === s.id ? " on" : "") + (s.lastCh && unread(s.lastCh, s) && !(cur?.id === s.id && curCh === s.lastCh) ? " unr" : ""), textContent: s.icon ? "" : s.name.slice(0, 2).toUpperCase(), title: s.name }); if (s.icon) Object.assign(b.style, { backgroundImage: `url("${s.icon}")`, backgroundSize: "cover", backgroundPosition: "center" }); b.onclick = () => selectServer(s.id); r.append(b); });
   r.append(h("div", { className: "sep" }));
   const add = h("button", { className: "sv add", textContent: "+", title: "Создать сервер" }); add.onclick = createServer;
   const join = h("button", { className: "sv add", textContent: "→", title: "Присоединиться по коду" }); join.onclick = joinServer;
@@ -250,7 +268,7 @@ function renderMembers() {
   if (!cur) return;
   const names = cur.names || {};
   m.append(h("h4", { textContent: "УЧАСТНИКИ — " + Object.keys(names).length }));
-  Object.entries(names).forEach(([uid, n]) => { const nn = nameOf(uid, n); const r = h("div", { className: "mb", style: "cursor:pointer" }, avatar(nn, uid), h("span", { style: "color:" + nameColor(uid, nn) }, h("span", { textContent: "● ", style: "color:" + (isOn(uid) ? "#23a55a" : "#80848e") }), nn + (uid === cur.owner ? " 👑" : ""))); r.onclick = () => showProfile(uid, nn); m.append(r); });
+  Object.entries(names).forEach(([uid, n]) => { const nn = nameOf(uid, n); const r = h("div", { className: "mb", style: "cursor:pointer" }, avatar(nn, uid), h("span", { style: "color:" + nameColor(uid, nn) }, h("span", { textContent: "● ", style: "color:" + dotColor(uid) }), nn + (uid === cur.owner ? " 👑" : ""))); r.onclick = () => showProfile(uid, nn); m.append(r); });
 }
 
 /* ---------- MESSAGES ---------- */
@@ -277,6 +295,36 @@ function selectChannel(id) {
   curCh = id; markSeen(id); const ch = chans.find(c => c.id === id); renderChans(); $("app").classList.remove("nav");
   openChat(["servers", cur.id, "channels", id, "messages"], "# " + (ch?.name || ""), "Написать в #" + (ch?.name || ""), cur.owner === user.uid, "Это начало канала. Напишите первое сообщение!");
 }
+function rich(text, names) {
+  let mine = false;
+  const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const nl = Object.keys(names).filter(Boolean).sort((a, b) => b.length - a.length).map(esc);
+  const mre = "@(?:everyone" + (nl.length ? "|" + nl.join("|") : "") + ")(?![\\p{L}\\p{N}_])";
+  const re = new RegExp("(`[^`\\n]+`)|(\\*\\*[^\\n]+?\\*\\*)|(~~[^\\n]+?~~)|(\\*[^*\\n]+?\\*)|(https?://[^\\s<]+)|(" + mre + ")", "giu");
+  const inline = (str, parent) => {
+    let last = 0, m; re.lastIndex = 0;
+    const found = []; while ((m = re.exec(str))) found.push({ i: m.index, t: m[0], g: m.slice(1).findIndex(Boolean) });
+    found.forEach(f => {
+      if (f.i < last) return;
+      if (f.i > last) parent.append(str.slice(last, f.i));
+      const t = f.t;
+      if (f.g === 0) parent.append(h("code", { textContent: t.slice(1, -1) }));
+      else if (f.g === 1) { const e = h("b"); inline(t.slice(2, -2), e); parent.append(e); }
+      else if (f.g === 2) { const e = h("s"); inline(t.slice(2, -2), e); parent.append(e); }
+      else if (f.g === 3) { const e = h("i"); inline(t.slice(1, -1), e); parent.append(e); }
+      else if (f.g === 4) { const mm = t.match(/^(.*?)([.,!?;:)]*)$/); parent.append(h("a", { href: mm[1], target: "_blank", rel: "noopener noreferrer", textContent: mm[1] })); if (mm[2]) parent.append(mm[2]); }
+      else { const k = t.slice(1).toLowerCase(), uid = names[k], every = k === "everyone"; if (every || uid === user.uid) mine = true; const sp = h("span", { className: "mn", textContent: t }); if (uid) sp.onclick = e => { e.stopPropagation(); showProfile(uid, t.slice(1)); }; parent.append(sp); }
+      last = f.i + t.length;
+    });
+    if (last < str.length) parent.append(str.slice(last));
+  };
+  const frag = document.createDocumentFragment();
+  text.split(/(```[\s\S]*?```)/g).forEach(part => {
+    if (part.length >= 6 && part.startsWith("```") && part.endsWith("```")) frag.append(h("pre", {}, h("code", { textContent: part.slice(3, -3).replace(/^\n/, "") })));
+    else inline(part, frag);
+  });
+  return { frag, mine };
+}
 function openChat(path, title, ph, admin, emptyText) {
   unsub.msg && unsub.msg(); mpath = path; canDelAll = admin; replyTo = editing = null; bar(); const key = path[path.length - 2]; markSeen(key);
   $("cname").textContent = title; $("inp").disabled = false; $("inp").placeholder = ph; $("inp").focus();
@@ -286,25 +334,28 @@ function openChat(path, title, ph, admin, emptyText) {
     const box = $("msgs"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || !box.children.length;
     box.replaceChildren();
     if (!list.length) box.append(h("div", { className: "empty", textContent: emptyText }));
+    const mnames = {}; { const src = path[0] === "servers" ? (cur?.names || {}) : (friends.find(x => x.id === path[1])?.names || {}); Object.entries(src).forEach(([u, n]) => { const k = String(nameOf(u, n)).toLowerCase(); if (k) mnames[k] = u; }); }
     let prev = null;
     list.forEach(m => {
+      let mine = false;
       const nm = nameOf(m.uid, m.name), srv = path[0] === "servers", secs = m.createdAt?.seconds || Date.now() / 1000;
       const first = !prev || prev.uid !== m.uid || secs - (prev.createdAt?.seconds || secs) > 420;
       const body = h("div", { className: "b" });
       if (first) { const w = h("span", { className: "who", textContent: nm, style: "color:" + (srv ? nameColor(m.uid, nm) : colorOf(nm)) }); w.onclick = () => showProfile(m.uid, nm); body.append(h("div", {}, w, h("span", { className: "ts", textContent: fmt(m.createdAt) }))); }
       if (m.pin) body.append(h("div", { className: "ts", textContent: "📌 закреплено" }));
-      if (m.re) body.append(h("div", { className: "qt", textContent: "↩ " + m.re.name + ": " + m.re.text }));
-      if (m.text) body.append(h("div", { className: "t" }, m.text, m.edited ? h("span", { className: "ts", textContent: " (изменено)" }) : ""));
+      if (m.re) { const q = h("div", { className: "qt", textContent: "↩ " + m.re.name + ": " + m.re.text }); q.onclick = e => { e.stopPropagation(); const t = [...$("msgs").children].find(x => x.dataset.id === m.re.id); if (!t) return toast("Исходное сообщение далеко или удалено"); t.scrollIntoView({ block: "center", behavior: "smooth" }); t.classList.add("flash"); setTimeout(() => t.classList.remove("flash"), 1500); }; body.append(q); }
+      if (m.text) { const rt = rich(m.text, mnames); if (rt.mine && m.uid !== user.uid) mine = true; body.append(h("div", { className: "t" }, rt.frag, m.edited ? h("span", { className: "ts", textContent: " (изменено)" }) : "")); }
       if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
       if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
       if (m.vid) {
         if (vcache[m.id]) body.append(h("video", { src: vcache[m.id], controls: true, playsInline: true, className: "pic", style: "cursor:default;max-height:360px;background:#000" }));
         else { const b = h("button", { className: "btn g", textContent: "▶ Видео, " + (m.vid.size / 1048576).toFixed(1) + " МБ. Нажмите, чтобы загрузить", style: "margin-top:4px;text-align:left" }); b.onclick = () => loadVideo(path, m, b); body.append(b); }
       }
-      const rx = Object.entries(m.rx || {}).filter(([, u]) => u.length);
+      if (m.poll) { const tot = m.poll.reduce((a, _, i) => a + (m.rx?.["p" + i] || []).length, 0), pl = h("div", { className: "pl" }); m.poll.forEach((o, i) => { const v = m.rx?.["p" + i] || [], b = h("button", { className: v.includes(user.uid) ? "me" : "" }, h("div", { className: "f", style: "width:" + (tot ? v.length / tot * 100 : 0) + "%" }), h("span", { textContent: o + " — " + v.length })); b.onclick = ev => { ev.stopPropagation(); react(path, m, "p" + i); }; pl.append(b); }); body.append(pl); }
+      const rx = Object.entries(m.rx || {}).filter(([k, u]) => u.length && !/^p\d+$/.test(k));
       if (rx.length) { const r = h("div"); rx.forEach(([e, u]) => { const b = h("button", { className: "rx" + (u.includes(user.uid) ? " me" : ""), textContent: e + " " + u.length }); b.onclick = ev => { ev.stopPropagation(); react(path, m, e); }; r.append(b); }); body.append(r); }
       let av; if (first) { av = avatar(nm, m.uid); av.onclick = () => showProfile(m.uid, nm); } else av = h("div", { className: "gap", textContent: hm(m.createdAt) });
-      const row = h("div", { className: "m" + (first ? " first" : "") }, av, body);
+      const row = h("div", { className: "m" + (first ? " first" : "") + (mine ? " ment" : "") }, av, body); row.dataset.id = m.id;
       const acts = h("div", { className: "acts" }), act = (t, fn, ti) => { const b = h("button", { textContent: t, title: ti || "" }); b.onclick = ev => { ev.stopPropagation(); fn(); }; acts.append(b); };
       ["👍", "❤️", "😂", "🔥", "😮"].forEach(e => act(e, () => react(path, m, e)));
       act("↩", () => setReply(m, nm), "Ответить");
@@ -319,7 +370,10 @@ function openChat(path, title, ph, admin, emptyText) {
   redraw = draw;
   unsub.msg = onSnapshot(query(collection(db, ...path), orderBy("createdAt", "desc"), limit(100)), snap => {
     if (mpath !== path) return;
-    list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); curList = list; draw(); markSeen(key); refreshDots();
+    const old = new Set(list.map(m => m.id)), had = list.length > 0;
+    list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); curList = list;
+    if (had && document.hidden && "Notification" in window && Notification.permission === "granted" && ucache[user.uid]?.status !== "dnd") list.filter(m => !old.has(m.id) && m.uid !== user.uid && m.createdAt).slice(-3).forEach(m => { try { new Notification(nameOf(m.uid, m.name) + " · " + title, { body: (m.text || "📎 Вложение").slice(0, 100), icon: "icon-192.png" }); } catch {} });
+    draw(); markSeen(key); refreshDots();
   }, e => toast("Ошибка чтения: " + e.code));
 }
 async function send(data) {
@@ -336,11 +390,37 @@ async function send(data) {
   }
   catch (er) { toast("Не отправлено: " + er.code); return false; }
 }
+const acp = h("div", { id: "acp" }); document.body.append(acp);
+let acItems = [], acIdx = 0, acTok = null;
+const acHide = () => { acp.style.display = "none"; acItems = []; };
+const acPick = name => { const i = $("inp"), pos = i.selectionStart, before = i.value.slice(0, pos).replace(/@[^\s@]*$/, "@" + name + " "); i.value = before + i.value.slice(pos); i.setSelectionRange(before.length, before.length); i.focus(); acHide(); };
+const acShow = () => { acp.replaceChildren(...acItems.map(([n], k) => { const b = h("button", { textContent: "@" + n, className: k === acIdx ? "on" : "" }); b.onmousedown = e => { e.preventDefault(); acPick(n); }; return b; })); const r = $("inp").getBoundingClientRect(); acp.style.left = r.left + "px"; acp.style.bottom = (innerHeight - r.top + 6) + "px"; acp.style.display = acItems.length ? "block" : "none"; };
+$("inp").addEventListener("input", () => {
+  const i = $("inp"), m = i.value.slice(0, i.selectionStart).match(/(?:^|\s)@([^\s@]*)$/); if (!m || !mpath) return acHide();
+  const src = mpath[0] === "servers" ? (cur?.names || {}) : (friends.find(x => x.id === mpath[1])?.names || {}), q = m[1].toLowerCase();
+  acItems = [["everyone", null], ...Object.entries(src).map(([u, n]) => [nameOf(u, n), u])].filter(([n]) => n.toLowerCase().startsWith(q)).slice(0, 6); acIdx = 0; acShow();
+});
+$("inp").addEventListener("keydown", e => {
+  if (!acItems.length) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); acIdx = (acIdx + (e.key === "ArrowDown" ? 1 : acItems.length - 1)) % acItems.length; acShow(); }
+  else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); acPick(acItems[acIdx][0]); }
+  else if (e.key === "Escape") acHide();
+}, true);
+$("inp").addEventListener("blur", () => setTimeout(acHide, 150));
 $("inp").addEventListener("keydown", async e => {
   if (e.key !== "Enter" || e.shiftKey) return;
   const text = $("inp").value.trim(); if (!text) return;
   if (editing) { const m = editing; editing = null; bar(); $("inp").value = ""; await updateDoc(doc(db, ...mpath, m.id), { text, edited: true }).catch(x => toast("Не удалось изменить: " + x.code)); return; }
-  $("inp").value = ""; if (!(await send({ text }))) $("inp").value = text;
+  let data = { text };
+  if (text[0] === "/") {
+    const [cmd, ...r] = text.slice(1).split(/\s+/), arg = r.join(" ");
+    if (cmd === "roll") { const n = Math.max(2, Math.min(1e6, parseInt(arg) || 100)); data = { text: `🎲 ${myName()} бросает кубик (1–${n}): **${1 + Math.floor(Math.random() * n)}**` }; }
+    else if (cmd === "shrug") data = { text: (arg + " ¯\\_(ツ)_/¯").trim() };
+    else if (cmd === "me") data = { text: `*${myName()} ${arg}*` };
+    else if (cmd === "poll") { const p = arg.split("|").map(x => x.trim()).filter(Boolean); if (p.length < 3 || p.length > 11) return toast("Формат: /poll Вопрос | вариант 1 | вариант 2"); data = { text: "📊 " + p[0], poll: p.slice(1) }; }
+    else if (cmd === "help") { $("inp").value = ""; return toast("/roll [N] · /shrug · /me · /poll Вопрос | вар1 | вар2"); }
+  }
+  $("inp").value = ""; if (!(await send(data))) $("inp").value = text;
 });
 function shrink(file) {
   return new Promise((res, rej) => {
@@ -409,7 +489,7 @@ function modal(...nodes) {
   const x = h("button", { className: "btn g", textContent: "Закрыть" }); x.onclick = closeM;
   $("pc").replaceChildren(...nodes, h("div", { className: "row" }, x)); $("pnl").classList.add("show");
 }
-const closeM = () => $("pnl").classList.remove("show");
+const closeM = () => { $("pnl").classList.remove("show"); document.querySelectorAll("input[data-avf]").forEach(x => x.remove()); };
 $("pnl").onclick = e => e.target === $("pnl") && closeM();
 const mkBtn = (t, fn, cls = "btn g") => { const b = h("button", { className: cls, textContent: t, style: "margin:6px 6px 0 0" }); b.onclick = fn; return b; };
 
@@ -420,7 +500,7 @@ async function showProfile(uid, fb) {
   const a = avatar(nm, uid); Object.assign(a.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
   items.push(a, h("h1", { textContent: nm, style: "text-align:center;font-size:22px" }));
   if (u.bio) items.push(h("p", { textContent: u.bio, style: "margin:6px 0 0" }));
-  if (uid !== me) items.push(h("p", { textContent: isOn(uid) ? "🟢 В сети" : u.lastSeen ? "⚪ Был(а) в сети " + new Date(ms(u.lastSeen)).toLocaleString("ru", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "", style: "margin:6px 0 0;font-size:13px" }));
+  if (uid !== me) items.push(h("p", { textContent: isOn(uid) ? (u.status === "dnd" ? "🔴 Не беспокоить" : "🟢 В сети") : u.lastSeen && u.status !== "invisible" ? "⚪ Был(а) в сети " + new Date(ms(u.lastSeen)).toLocaleString("ru", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "", style: "margin:6px 0 0;font-size:13px" }));
   const r = cur && cur.members?.includes(uid) ? roleOf(uid) : null;
   if (r) items.push(h("div", { style: "text-align:center" }, h("span", { className: "rl", textContent: r.name, style: `color:${r.color};border-color:${r.color}` })));
   if (cur && cur.owner === uid) items.push(h("p", { textContent: "👑 Владелец сервера", style: "margin:6px 0 0" }));
@@ -431,14 +511,14 @@ async function showProfile(uid, fb) {
     const ref = doc(db, "servers", cur.id), done = p => p.then(() => { toast("Готово"); closeM(); }).catch(e => toast("Ошибка: " + e.code));
     if (perm(me, "roles")) {
       const sel = h("select", { className: "in" }); sel.append(new Option("Без роли", "")); (cur.roles || []).forEach(x => sel.append(new Option(x.name, x.id))); sel.value = (cur.mr || {})[uid] || "";
-      sel.onchange = () => done(updateDoc(ref, { ["mr." + uid]: sel.value || deleteField() }));
+      sel.onchange = () => { logIt("роль «" + ((cur.roles || []).find(x => x.id === sel.value)?.name || "снята") + "»: " + nm); done(updateDoc(ref, { ["mr." + uid]: sel.value || deleteField() })); };
       items.push(h("label", { textContent: "РОЛЬ" }), sel);
     }
     if (perm(me, "mod") && (me === cur.owner || !perm(uid, "mod"))) {
-      const lim = ms => done(updateDoc(ref, { ["to." + uid]: ms ? Date.now() + ms : deleteField() }));
+      const lim = ms => { logIt((ms ? (ms > 2e11 ? "запрет писать: " : "таймаут " + Math.round(ms / 6e4) + " мин: ") : "снято ограничение: ") + nm); return done(updateDoc(ref, { ["to." + uid]: ms ? Date.now() + ms : deleteField() })); };
       items.push(h("div", { className: "sec" }, h("span", { textContent: "МОДЕРАЦИЯ" })),
         mkBtn("⏱ Таймаут 10 мин", () => lim(6e5)), mkBtn("⏱ Таймаут 1 час", () => lim(36e5)), mkBtn("🔇 Запретить писать", () => lim(3e11)), mkBtn("🔊 Снять ограничение", () => lim(0)),
-        mkBtn("🔨 Забанить", () => confirm("Забанить " + nm + "?") && done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField(), ["bn." + uid]: nm })), "btn red"));
+        mkBtn("🔨 Забанить", () => confirm("Забанить " + nm + "?") && (logIt("бан: " + nm), done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField(), ["bn." + uid]: nm }))), "btn red"));
     }
   }
   modal(...items);
@@ -452,22 +532,28 @@ function editProfile() {
   const u = ucache[user.uid] || {}; let av = u.avatar || null;
   const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" });
   const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
-  const f = h("input", { type: "file", accept: "image/*", style: "position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer" });
-  const pick = h("label", { textContent: "📷 Выбрать фото", className: "btn g", style: "position:relative;display:inline-block;overflow:hidden;margin:6px 6px 0 0;font-size:15px;text-transform:none;color:var(--txt)" }, f);
+  const f = h("input", { type: "file", accept: "image/*", "data-avf": "1", style: "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0" });
+  f.setAttribute("data-avf", "1"); document.body.append(f);
+  const pick = mkBtn("📷 Выбрать фото", () => f.click());
   const clr = mkBtn("Убрать аватарку", () => { av = null; prev.style.backgroundImage = ""; prev.style.background = colorOf(myName()); prev.classList.remove("img"); toast("Нажмите «Сохранить»"); });
-  f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { toast("Не удалось обработать фото, выберите JPG или PNG"); } };
+  f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); f.value = ""; prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { f.value = ""; toast("Не удалось обработать фото, выберите JPG или PNG"); } };
+  const sel = (opts, val) => { const e = h("select", { className: "in" }); opts.forEach(([v, t]) => e.append(h("option", { value: v, textContent: t }))); e.value = val; return e; };
+  const st = sel([["online", "🟢 В сети"], ["dnd", "🔴 Не беспокоить"], ["invisible", "⚪ Невидимка"]], u.status || "online");
+  const th = sel([["dark", "Тёмная"], ["light", "Светлая"]], LS.get("theme") || "dark"); th.onchange = () => { LS.set("theme", th.value); applyLook(); };
+  const fs = sel([["13", "Мелкий"], ["15", "Обычный"], ["17", "Крупный"], ["19", "Очень крупный"]], LS.get("fs") || "15"); fs.onchange = () => { LS.set("fs", fs.value); applyLook(); };
+  const nt = mkBtn("🔔 Уведомления в браузере", () => "Notification" in window ? Notification.requestPermission().then(r => toast(r === "granted" ? "Уведомления включены" : "Уведомления запрещены")) : toast("Браузер не поддерживает"));
   const save = mkBtn("Сохранить", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите ник");
     try {
-      await updateProfile(auth.currentUser, { displayName: name }); user = auth.currentUser;
-      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), avatar: av || "" };
+      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), avatar: av || "", status: st.value };
       await setDoc(doc(db, "users", user.uid), data, { merge: true }); ucache[user.uid] = { ...ucache[user.uid], ...data };
+      try { await updateProfile(auth.currentUser, { displayName: name }); } catch {} user = auth.currentUser;
       servers.forEach(x => updateDoc(doc(db, "servers", x.id), { ["names." + user.uid]: name }).catch(() => {}));
       friends.forEach(x => updateDoc(doc(db, "friends", x.id), { ["names." + user.uid]: name }).catch(() => {}));
-      paintMe(); renderMembers(); redraw && redraw(); closeM(); toast("Профиль обновлён");
+      paintMe(); renderMembers(); redraw && redraw(); if (home) renderHome(); closeM(); toast("Профиль обновлён");
     } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
   }, "btn full");
-  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, save);
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "СТАТУС" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, nt, save);
 }
 const PAL = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c", "#3498db", "#5865f2", "#9b59b6", "#e91e63", "#95a5a6"];
 function colorPick(init) {
@@ -497,7 +583,9 @@ function newRole(role) {
 function serverPanel() {
   if (!cur) return; const me = user.uid, ref = doc(db, "servers", cur.id), n = [];
   n.push(h("h1", { textContent: cur.name, style: "text-align:center;font-size:22px" }), h("p", { textContent: "Код приглашения: " + cur.id, style: "margin:10px 0 0;word-break:break-all;font-size:13px" }),
-    mkBtn("📋 Копировать код", async () => { try { await navigator.clipboard.writeText(cur.id); toast("Код скопирован"); } catch { toast("Код: " + cur.id); } }));
+    mkBtn("📋 Копировать код", async () => { try { await navigator.clipboard.writeText(cur.id); toast("Код скопирован"); } catch { toast("Код: " + cur.id); } }),
+    mkBtn("🔗 Приглашение со сроком", invitePanel));
+  if (perm(me, "mod")) n.push(mkBtn("📜 Журнал модерации", logPanel));
   n.push(h("div", { className: "sec" }, h("span", { textContent: "УЧАСТНИКИ" })));
   Object.entries(cur.names || {}).forEach(([uid, nm]) => n.push(mkBtn(nameOf(uid, nm) + (uid === cur.owner ? " 👑" : ""), () => showProfile(uid, nm))));
   if (perm(me, "roles")) {
@@ -506,11 +594,16 @@ function serverPanel() {
     n.push(mkBtn("➕ Создать роль", () => newRole()));
   }
   const bans = Object.entries(cur.bn || {});
-  if (bans.length && perm(me, "mod")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "БАН-ЛИСТ" }))); bans.forEach(([uid, nm]) => n.push(mkBtn("Разбанить " + nm, () => updateDoc(ref, { ["bn." + uid]: deleteField() }).then(() => { toast("Разбанен"); closeM(); })))); }
+  if (bans.length && perm(me, "mod")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "БАН-ЛИСТ" }))); bans.forEach(([uid, nm]) => n.push(mkBtn("Разбанить " + nm, () => { logIt("разбан: " + nm); return updateDoc(ref, { ["bn." + uid]: deleteField() }).then(() => { toast("Разбанен"); closeM(); }); }))); }
   if (perm(me, "roles")) { n.push(h("div", { className: "sec" }, h("span", { textContent: "КАНАЛЫ (доступ по ролям)" }))); allChans.forEach(ch => n.push(mkBtn((ch.roles?.length ? "🔒 " : "# ") + ch.name, () => channelModal(ch)))); }
   n.push(h("div", { className: "sec" }, h("span", { textContent: "СЕРВЕР" })));
   if (cur.owner !== me) n.push(mkBtn("🚪 Покинуть сервер", () => confirm("Покинуть сервер?") && updateDoc(ref, { members: arrayRemove(me) }).then(closeM), "btn red"));
-  else n.push(mkBtn("🗑 Удалить сервер", () => confirm("Удалить сервер навсегда?") && deleteDoc(ref).then(closeM), "btn red"));
+  if (cur.owner === me) {
+    const sid = cur.id, setIcon = v => updateDoc(doc(db, "servers", sid), { icon: v }).then(() => { toast("Готово"); closeM(); }).catch(e => toast("Ошибка: " + e.code));
+    n.push(mkBtn("🖼 Значок сервера", () => { const f = h("input", { type: "file", accept: "image/*", style: "position:fixed;left:-9999px;opacity:0" }); document.body.append(f); f.onchange = async () => { const file = f.files[0]; f.remove(); if (!file) return; try { setIcon(await square(file)); } catch { toast("Не удалось обработать фото"); } }; f.click(); }));
+    if (cur.icon) n.push(mkBtn("Убрать значок", () => setIcon("")));
+  }
+  if (cur.owner !== me) { } else n.push(mkBtn("🗑 Удалить сервер", () => confirm("Удалить сервер навсегда?") && deleteDoc(ref).then(closeM), "btn red"));
   modal(...n);
 }
 $("menu").onclick = serverPanel;
@@ -539,14 +632,15 @@ $("mic").onclick = async () => {
 };
 
 /* ---------- PRESENCE / TYPING ---------- */
-const isOn = uid => { const t = ucache[uid]?.lastSeen; return !!t && Date.now() - ms(t) < 100000; };
+const isOn = uid => { const u = ucache[uid]; return !!u?.lastSeen && u.status !== "invisible" && Date.now() - ms(u.lastSeen) < 100000; };
+const dotColor = uid => !isOn(uid) ? "#80848e" : ucache[uid]?.status === "dnd" ? "#f23f43" : "#23a55a";
 const beat = () => { if (user && !document.hidden) setDoc(doc(db, "users", user.uid), { lastSeen: serverTimestamp() }, { merge: true }).catch(() => {}); };
 async function pollPresence() {
   if (document.hidden || !user) return;
   const ids = new Set(cur?.members || []); friends.filter(f => !f.group).forEach(f => ids.add(f.users.find(u => u !== user.uid)));
-  const a = [...ids].filter(Boolean);
-  for (let i = 0; i < a.length; i += 30) { try { (await getDocs(query(collection(db, "users"), where(documentId(), "in", a.slice(i, i + 30))))).docs.forEach(d => ucache[d.id] = d.data()); } catch {} }
-  renderMembers(); if (home) renderHome();
+  const a = [...ids].filter(Boolean); let chg = false;
+  for (let i = 0; i < a.length; i += 30) { try { (await getDocs(query(collection(db, "users"), where(documentId(), "in", a.slice(i, i + 30))))).docs.forEach(d => { if (d.id === user.uid || d.metadata.hasPendingWrites) return; const o = ucache[d.id] || {}, nw = d.data(); if (o.avatar !== nw.avatar || o.name !== nw.name) chg = true; ucache[d.id] = nw; }); } catch {} }
+  renderMembers(); if (home) renderHome(); if (chg) redraw && redraw();
 }
 const tick = () => { beat(); pollPresence(); };
 setInterval(tick, 60000); setTimeout(tick, 3000); document.addEventListener("visibilitychange", () => !document.hidden && tick());
@@ -792,13 +886,86 @@ async function createServer() {
 async function joinServer() {
   const code = await ask("Присоединиться к серверу", "Вставьте код приглашения.", "Код приглашения"); if (!code) return;
   try {
-    const ref = doc(db, "servers", code), s = await getDoc(ref);
+    let sid = code, inv = null; const iv = await getDoc(doc(db, "invites", code)).catch(() => null);
+    if (iv && iv.exists()) { inv = iv.data(); if (inv.exp && inv.exp < Date.now()) return toast("Срок приглашения истёк"); if (inv.max && inv.n >= inv.max) return toast("Приглашение уже использовано"); sid = inv.s; }
+    const ref = doc(db, "servers", sid), s = await getDoc(ref);
     if (!s.exists()) return toast("Сервер с таким кодом не найден");
     if (s.data().bn?.[user.uid]) return toast("Вы забанены на этом сервере");
     await updateDoc(ref, { members: arrayUnion(user.uid), ["names." + user.uid]: myName() });
-    toast("Вы присоединились к «" + s.data().name + "»"); setTimeout(() => selectServer(code), 500);
+    if (inv && !(s.data().members || []).includes(user.uid)) updateDoc(doc(db, "invites", code), { n: (inv.n || 0) + 1 }).catch(() => {});
+    toast("Вы присоединились к «" + s.data().name + "»"); setTimeout(() => selectServer(sid), 500);
   } catch (e) { toast("Ошибка: " + e.code); }
 }
+const logIt = t => cur && addDoc(collection(db, "servers", cur.id, "log"), { t: Date.now(), by: user.uid, name: myName(), text: t }).catch(() => {});
+async function logPanel() {
+  if (!cur) return; let rows = [];
+  try { rows = (await getDocs(query(collection(db, "servers", cur.id, "log"), orderBy("t", "desc"), limit(50)))).docs.map(d => d.data()); } catch (e) { return toast("Ошибка: " + e.code); }
+  modal(h("h1", { textContent: "Журнал модерации", style: "text-align:center;font-size:22px" }), ...(rows.length ? rows.map(r => h("p", { style: "margin:8px 0 0;font-size:13px", textContent: new Date(r.t).toLocaleString("ru", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + " · " + r.name + ": " + r.text })) : [h("p", { textContent: "Пока пусто" })]));
+}
+function invitePanel() {
+  if (!cur) return; const sid = cur.id, mk = (o, v) => { const e = h("select", { className: "in" }); o.forEach(([x, t]) => e.append(new Option(t, x))); e.value = v; return e; };
+  const dur = mk([["3600000", "1 час"], ["86400000", "1 день"], ["604800000", "7 дней"], ["0", "Бессрочно"]], "86400000"), use = mk([["1", "1 раз"], ["10", "10 раз"], ["0", "Без лимита"]], "10"), out = h("p", { style: "word-break:break-all;margin-top:12px" });
+  const go = mkBtn("Создать приглашение", async () => {
+    const code = [...crypto.getRandomValues(new Uint8Array(8))].map(b => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
+    try { await setDoc(doc(db, "invites", code), { s: sid, exp: +dur.value ? Date.now() + +dur.value : 0, max: +use.value, n: 0, by: user.uid }); out.textContent = "Код приглашения: " + code; try { await navigator.clipboard.writeText(code); toast("Код скопирован"); } catch {} } catch (e) { toast("Ошибка: " + e.code); }
+  }, "btn full");
+  modal(h("h1", { textContent: "Приглашение", style: "text-align:center;font-size:22px" }), h("label", { textContent: "СРОК ДЕЙСТВИЯ" }), dur, h("label", { textContent: "СКОЛЬКО РАЗ МОЖНО ИСПОЛЬЗОВАТЬ" }), use, go, out);
+}
+/* ---------- ГРУППОВОЙ ГОЛОС (mesh WebRTC через Firestore) ---------- */
+let vc = null;
+const gv = h("div", { id: "gv" }); document.body.append(gv);
+const vlive = d => Date.now() - (d.hb || d.t || 0) < 90000;
+const vsig = (to, type, data) => addDoc(collection(db, "servers", vc.sid, "voice", to, "sig"), { from: user.uid, type, data: JSON.stringify(data) }).catch(() => {});
+function vclose(uid) { const p = vc?.peers[uid]; if (!p) return; p.pc.close(); if (p.el) p.el.srcObject = null; delete vc.peers[uid]; }
+function vpeer(uid) {
+  vclose(uid); const pc = new RTCPeerConnection(ICE), p = { pc, buf: [], el: null }; vc.peers[uid] = p;
+  vc.stream.getTracks().forEach(t => pc.addTrack(t, vc.stream));
+  pc.onicecandidate = e => e.candidate && vsig(uid, "ice", e.candidate.toJSON());
+  pc.ontrack = e => { if (!p.el) { p.el = new Audio(); p.el.autoplay = true; } p.el.srcObject = e.streams[0]; p.el.play?.().catch(() => {}); };
+  pc.onconnectionstatechange = () => pc.connectionState === "failed" && toast("Нет соединения с участником голосового канала (возможно, нужен TURN)");
+  return p;
+}
+const vflush = async p => { for (const c of p.buf.splice(0)) await p.pc.addIceCandidate(c).catch(() => {}); };
+function vrender() {
+  if (!vc) return; const mic = h("button", { className: "ib", textContent: vc.stream.getAudioTracks()[0]?.enabled ? "🎤" : "🔇", title: "Микрофон" }), out = h("button", { className: "ib", textContent: "📵", title: "Выйти из голосового канала" });
+  mic.onclick = () => { const t = vc.stream.getAudioTracks()[0]; t.enabled = !t.enabled; vrender(); }; out.onclick = leaveVoice;
+  gv.replaceChildren(h("b", { textContent: "🔊 Голосовой канал" }), ...vc.parts.map(d => h("div", { className: "pp", textContent: "● " + (d.name || "?") + (d.id === user.uid ? " (вы)" : "") })), h("div", { style: "margin-top:6px" }, mic, out)); gv.style.display = "block";
+}
+async function joinVoice(sid) {
+  if (vc) return toast("Вы уже в голосовом канале"); if (pc) return toast("Сначала завершите личный звонок");
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch (e) { return toast("Нет доступа к микрофону: " + mediaErr(e)); }
+  const t = Date.now(), mine = doc(db, "servers", sid, "voice", user.uid); vc = { sid, t, stream, peers: {}, unsubs: [], parts: [], hb: null };
+  try {
+    await setDoc(mine, { name: myName(), t, hb: t });
+    const old = await getDocs(collection(db, "servers", sid, "voice", user.uid, "sig")); old.docs.forEach(d => deleteDoc(d.ref).catch(() => {}));
+  } catch (e) { stream.getTracks().forEach(x => x.stop()); vc = null; return toast("Ошибка: " + e.code); }
+  vc.hb = setInterval(() => updateDoc(mine, { hb: Date.now() }).catch(() => {}), 25000);
+  vc.unsubs.push(onSnapshot(collection(db, "servers", sid, "voice"), snap => {
+    if (!vc) return; const live = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(vlive); vc.parts = live; vrender();
+    const ids = new Set(live.map(x => x.id)); Object.keys(vc.peers).forEach(u => !ids.has(u) && vclose(u));
+    live.forEach(async d => {
+      if (d.id === user.uid || vc?.peers[d.id]) return;
+      if (d.t < t || (d.t === t && d.id < user.uid)) { const p = vpeer(d.id); try { const o = await p.pc.createOffer(); await p.pc.setLocalDescription(o); vsig(d.id, "offer", { type: o.type, sdp: o.sdp }); } catch {} }
+    });
+  }, e => toast("Голос: " + e.code)));
+  vc.unsubs.push(onSnapshot(collection(db, "servers", sid, "voice", user.uid, "sig"), snap => snap.docChanges().forEach(async ch => {
+    if (ch.type !== "added") return; const d = ch.doc.data(); deleteDoc(ch.doc.ref).catch(() => {}); if (!vc) return;
+    try {
+      const data = JSON.parse(d.data);
+      if (d.type === "offer") { const p = vpeer(d.from); await p.pc.setRemoteDescription(data); await vflush(p); const a = await p.pc.createAnswer(); await p.pc.setLocalDescription(a); vsig(d.from, "answer", { type: a.type, sdp: a.sdp }); }
+      else { const p = vc.peers[d.from]; if (!p) return; if (d.type === "answer") { await p.pc.setRemoteDescription(data).catch(() => {}); await vflush(p); } else if (p.pc.remoteDescription) await p.pc.addIceCandidate(data).catch(() => {}); else p.buf.push(data); }
+    } catch {}
+  })));
+  vrender();
+}
+function leaveVoice() {
+  const v = vc; if (!v) return; vc = null; clearInterval(v.hb); v.unsubs.forEach(f => f());
+  Object.values(v.peers).forEach(p => { p.pc.close(); if (p.el) p.el.srcObject = null; }); v.stream.getTracks().forEach(x => x.stop());
+  deleteDoc(doc(db, "servers", v.sid, "voice", user.uid)).catch(() => {}); gv.style.display = "none";
+}
+addEventListener("pagehide", leaveVoice);
+{ const vg = h("button", { className: "ib", id: "vgrp", title: "Голосовой канал сервера (для всех)", textContent: "🔊" }); $("vvid").after(vg);
+  vg.onclick = () => vc ? toast("Вы уже в голосовом канале") : mpath?.[0] === "servers" ? joinVoice(mpath[1]) : toast("Откройте канал сервера"); }
 async function createChannel() {
   if (!cur) return;
   const name = (await ask("Создать канал", "Название канала.", "новый-канал") || "").toLowerCase().replace(/\s+/g, "-"); if (!name) return;
