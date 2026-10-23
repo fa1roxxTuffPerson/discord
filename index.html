@@ -115,7 +115,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
     <div id="msgs"><div class="empty">Создайте сервер или присоединитесь к существующему по коду приглашения.</div></div>
     <div id="ty"></div>
     <div id="rb"></div>
-    <div id="form"><button class="ib" id="att" title="Отправить фото">📎</button><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="mic" title="Голосовое сообщение">🎤</button><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*" hidden></div>
+    <div id="form"><button class="ib" id="att" title="Фото или видео">📎</button><input id="inp" placeholder="Написать сообщение" maxlength="2000" autocomplete="off" disabled><button class="ib" id="mic" title="Голосовое сообщение">🎤</button><button class="ib" id="emo" title="Эмодзи">😀</button><input type="file" id="file" accept="image/*,video/*" hidden></div>
     <div id="emp"></div>
   </main>
   <aside id="mem"></aside>
@@ -136,7 +136,7 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField, FieldPath, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField, FieldPath, documentId, Bytes } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyBSyynf_g3goTl2bS05slOiylDnGru0m54",
@@ -254,6 +254,7 @@ function renderMembers() {
 }
 
 /* ---------- MESSAGES ---------- */
+const vcache = {};
 let canDelAll = false, redraw = null, rdT, replyTo = null, editing = null;
 const seen = (() => { try { return JSON.parse(localStorage.getItem("seen") || "{}"); } catch { return {}; } })();
 const markSeen = k => { seen[k] = Date.now(); try { localStorage.setItem("seen", JSON.stringify(seen)); } catch {} };
@@ -266,7 +267,7 @@ function bar() {
   const x = h("button", { className: "ib", textContent: "✕" }); x.onclick = () => { replyTo = editing = null; $("inp").value = ""; bar(); };
   b.append(h("span", { textContent: editing ? "✏ Редактирование сообщения" : "↩ Ответ для " + replyTo.name + ": " + replyTo.text, style: "flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" }), x);
 }
-const setReply = (m, nm) => { editing = null; replyTo = { id: m.id, name: nm, text: (m.text || (m.img ? "📷 Фото" : "🎤 Голосовое")).slice(0, 60) }; bar(); $("inp").focus(); };
+const setReply = (m, nm) => { editing = null; replyTo = { id: m.id, name: nm, text: (m.text || (m.img ? "📷 Фото" : m.vid ? "🎬 Видео" : "🎤 Голосовое")).slice(0, 60) }; bar(); $("inp").focus(); };
 const setEdit = m => { replyTo = null; editing = m; $("inp").value = m.text; bar(); $("inp").focus(); };
 const react = (path, m, e) => updateDoc(doc(db, ...path, m.id), new FieldPath("rx", e), (m.rx?.[e] || []).includes(user.uid) ? arrayRemove(user.uid) : arrayUnion(user.uid)).catch(x => toast("Ошибка: " + x.code));
 function refreshDots() { renderRail(); home ? renderHome() : renderChans(); }
@@ -296,6 +297,10 @@ function openChat(path, title, ph, admin, emptyText) {
       if (m.text) body.append(h("div", { className: "t" }, m.text, m.edited ? h("span", { className: "ts", textContent: " (изменено)" }) : ""));
       if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
       if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
+      if (m.vid) {
+        if (vcache[m.id]) body.append(h("video", { src: vcache[m.id], controls: true, playsInline: true, className: "pic", style: "cursor:default;max-height:360px;background:#000" }));
+        else { const b = h("button", { className: "btn g", textContent: "▶ Видео, " + (m.vid.size / 1048576).toFixed(1) + " МБ. Нажмите, чтобы загрузить", style: "margin-top:4px;text-align:left" }); b.onclick = () => loadVideo(path, m, b); body.append(b); }
+      }
       const rx = Object.entries(m.rx || {}).filter(([, u]) => u.length);
       if (rx.length) { const r = h("div"); rx.forEach(([e, u]) => { const b = h("button", { className: "rx" + (u.includes(user.uid) ? " me" : ""), textContent: e + " " + u.length }); b.onclick = ev => { ev.stopPropagation(); react(path, m, e); }; r.append(b); }); body.append(r); }
       let av; if (first) { av = avatar(nm, m.uid); av.onclick = () => showProfile(m.uid, nm); } else av = h("div", { className: "gap", textContent: hm(m.createdAt) });
@@ -305,7 +310,7 @@ function openChat(path, title, ph, admin, emptyText) {
       act("↩", () => setReply(m, nm), "Ответить");
       if (m.uid === user.uid && m.text) act("✏", () => setEdit(m), "Изменить");
       if (!srv || perm(user.uid, "mod") || canDelAll) act(m.pin ? "📍" : "📌", () => updateDoc(doc(db, ...path, m.id), { pin: !m.pin }).catch(x => toast("Ошибка: " + x.code)), m.pin ? "Открепить" : "Закрепить");
-      if (m.uid === user.uid || canDelAll) act("🗑", () => deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")), "Удалить");
+      if (m.uid === user.uid || canDelAll) act("🗑", async () => { if (m.vid) for (let i = 0; i < m.vid.n; i++) await deleteDoc(doc(db, ...path, m.id, "chunks", "" + i)).catch(() => {}); deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); }, "Удалить");
       row.append(acts); row.onclick = e => { if (!e.target.closest("button,img,audio,.who,.av")) row.classList.toggle("sel"); };
       box.append(row); prev = m;
     });
@@ -321,7 +326,8 @@ async function send(data) {
   if (!mpath) return false;
   if (mpath[0] === "servers" && cur?.to?.[user.uid] > Date.now()) { const t = cur.to[user.uid]; toast(t > Date.now() + 2e11 ? "Вам запретили писать на этом сервере" : "Таймаут до " + new Date(t).toLocaleTimeString("ru")); return false; }
   try {
-    await addDoc(collection(db, ...mpath), { ...data, ...(replyTo ? { re: replyTo } : {}), uid: user.uid, name: myName(), createdAt: serverTimestamp() });
+    const { id: mid, ...rest } = data, body = { ...rest, ...(replyTo ? { re: replyTo } : {}), uid: user.uid, name: myName(), createdAt: serverTimestamp() };
+    if (mid) await setDoc(doc(db, ...mpath, mid), body); else await addDoc(collection(db, ...mpath), body);
     replyTo = null; bar();
     const l = { last: serverTimestamp(), lastBy: user.uid };
     if (mpath[0] === "servers") { updateDoc(doc(db, "servers", mpath[1], "channels", mpath[3]), l).catch(() => {}); updateDoc(doc(db, "servers", mpath[1]), { ...l, lastCh: mpath[3] }).catch(() => {}); }
@@ -352,8 +358,31 @@ function shrink(file) {
 $("att").onclick = () => mpath ? $("file").click() : toast("Сначала выберите канал или друга");
 $("file").onchange = async () => {
   const f = $("file").files[0]; $("file").value = ""; if (!f || !mpath) return;
+  if (f.type.startsWith("video/")) return sendVideo(f);
   try { toast("Отправка фото…"); await send({ text: "", img: await shrink(f) }); } catch { toast("Не удалось обработать фото"); }
 };
+async function sendVideo(f) {
+  if (f.size > 20e6) return toast("Видео больше 20 МБ. Обрежьте или сожмите его");
+  const path = mpath, mref = doc(collection(db, ...path)), CH = 900000, n = Math.ceil(f.size / CH);
+  try {
+    for (let i = 0; i < n; i++) {
+      toast("Загрузка видео " + (i + 1) + "/" + n + "…");
+      const buf = new Uint8Array(await f.slice(i * CH, (i + 1) * CH).arrayBuffer());
+      await setDoc(doc(db, ...path, mref.id, "chunks", "" + i), { i, b: Bytes.fromUint8Array(buf) });
+    }
+    if (mpath !== path) return toast("Вы сменили чат, видео не отправлено");
+    await send({ id: mref.id, text: "", vid: { n, type: f.type || "video/mp4", size: f.size } });
+  } catch (e) { toast("Не удалось отправить видео: " + (e.code || e.message)); }
+}
+async function loadVideo(path, m, btn) {
+  btn.textContent = "Загрузка видео…";
+  try {
+    const q = await getDocs(collection(db, ...path, m.id, "chunks"));
+    const parts = q.docs.map(d => d.data()).sort((a, b) => a.i - b.i).map(d => d.b.toUint8Array());
+    if (parts.length !== m.vid.n) throw 0;
+    vcache[m.id] = URL.createObjectURL(new Blob(parts, { type: m.vid.type })); redraw && redraw();
+  } catch { btn.textContent = "Не удалось загрузить видео. Нажмите, чтобы повторить"; }
+}
 $("lbw").onclick = () => $("lbw").classList.remove("show");
 "😀😂😍🥰😎🤔😭😡👍👎🙏🔥❤️🎉💀👀😴🤝✨💯🎮🍕☕🌙".match(/\p{Extended_Pictographic}\uFE0F?/gu).forEach(em => { const b = h("button", { textContent: em }); b.onclick = () => { $("inp").value += em; $("inp").focus(); }; $("emp").append(b); });
 $("emo").onclick = () => $("emp").classList.toggle("show");
@@ -558,7 +587,7 @@ function channelModal(ch) {
   const del = mkBtn("Удалить канал", () => allChans.length > 1 ? confirm("Удалить канал «" + ch.name + "»?") && deleteDoc(ref).then(closeM) : toast("Нельзя удалить последний канал"), "btn red");
   modal(h("h1", { textContent: "# " + ch.name, style: "font-size:22px" }), h("p", { textContent: rs.length ? "Отметьте роли, которым открыт канал. Если ничего не отмечено, канал доступен всем." : "Сначала создайте роли.", style: "margin:8px 0 0;font-size:13px" }), ...boxes, save, del);
 }
-const msgCard = m => h("div", { style: "margin-top:12px;padding:8px;background:var(--bg1);border-radius:6px" }, h("div", { className: "ts", textContent: nameOf(m.uid, m.name) + " · " + fmt(m.createdAt) }), h("div", { textContent: m.text || (m.img ? "📷 Фото" : m.aud ? "🎤 Голосовое" : ""), style: "white-space:pre-wrap;overflow-wrap:anywhere" }));
+const msgCard = m => h("div", { style: "margin-top:12px;padding:8px;background:var(--bg1);border-radius:6px" }, h("div", { className: "ts", textContent: nameOf(m.uid, m.name) + " · " + fmt(m.createdAt) }), h("div", { textContent: m.text || (m.img ? "📷 Фото" : m.vid ? "🎬 Видео" : m.aud ? "🎤 Голосовое" : ""), style: "white-space:pre-wrap;overflow-wrap:anywhere" }));
 $("pins").onclick = async () => {
   if (!mpath) return toast("Откройте канал или чат");
   let els = [];
