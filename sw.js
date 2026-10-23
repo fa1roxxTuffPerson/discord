@@ -1,6 +1,6 @@
 // Service worker: сначала сеть для страницы (чтобы обновления приходили сразу),
 // кеш для иконок и манифеста. Запросы к Firebase и другим сайтам не перехватываются.
-const VERSION = "v6";
+const VERSION = "v7";
 const CACHE = "app-" + VERSION;
 const STATIC = ["./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png"];
 

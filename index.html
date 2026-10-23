@@ -246,7 +246,7 @@ function renderRail() {
 }
 function selectServer(id) {
   unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); curCh = null; chans = []; home = false; mpath = null;
-  cur = servers.find(s => s.id === id) || null;
+  cur = servers.find(s => s.id === id) || null; watchVoice(cur?.id);
   renderRail(); renderMembers(); renderChans(); $("menu").hidden = !cur;
   $("sname").textContent = cur ? cur.name : "Выберите сервер";
   $("cname").textContent = "# —"; $("inp").disabled = true;
@@ -667,14 +667,20 @@ setInterval(paintTyping, 2000);
 
 /* ---------- GROUPS / PRIVATE CHANNELS / PINS / SEARCH ---------- */
 const vis = ch => !ch.roles?.length || cur.owner === user.uid || ch.roles.includes((cur.mr || {})[user.uid]);
+const chk = (color, text, init = false) => {
+  const st = { checked: init }, box = h("span", { style: "width:22px;height:22px;border-radius:6px;border:2px solid var(--mut);display:grid;place-items:center;flex:none;color:#fff;font-size:14px" });
+  const paint = () => { box.textContent = st.checked ? "✓" : ""; box.style.background = st.checked ? "var(--acc)" : "transparent"; box.style.borderColor = st.checked ? "var(--acc)" : "var(--mut)"; };
+  const b = h("button", { type: "button", style: "display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;padding:10px 0;font-size:15px;text-align:left;cursor:pointer;color:" + color }, box, h("span", { textContent: text }));
+  paint(); b.onclick = () => { st.checked = !st.checked; paint(); }; b.i = st; return b;
+};
 const lbl = (color, i, t) => h("label", { style: "display:block;margin-top:10px;font-size:14px;font-weight:400;color:" + color }, i, " " + t);
 function newGroup() {
   const okf = friends.filter(f => f.status === "accepted" && !f.group);
   if (!okf.length) return toast("Сначала добавьте друзей");
   const t = h("input", { className: "in", placeholder: "Название группы", maxLength: 30 });
-  const boxes = okf.map(f => { const u = f.users.find(x => x !== user.uid), i = h("input", { type: "checkbox" }), l = lbl("var(--txt)", i, f.names[u]); l.u = u; l.n = f.names[u]; l.i = i; return l; });
+  const boxes = okf.map(f => { const u = f.users.find(x => x !== user.uid), l = chk("var(--txt)", f.names[u] || "Без имени"); l.u = u; l.n = f.names[u] || "Без имени"; return l; });
   const go = mkBtn("Создать", async () => {
-    const sel = boxes.filter(b => b.i.checked); if (!sel.length || !t.value.trim()) return toast("Введите название и выберите друзей");
+    const sel = boxes.filter(b => b.i.checked); if (!t.value.trim()) return toast("Введите название группы"); if (!sel.length) return toast("Отметьте хотя бы одного друга");
     const names = { [user.uid]: myName() }; sel.forEach(b => names[b.u] = b.n);
     try { await setDoc(doc(collection(db, "friends")), { users: [user.uid, ...sel.map(b => b.u)], names, status: "accepted", group: true, title: t.value.trim(), from: user.uid }); closeM(); toast("Группа создана"); } catch (e) { toast("Ошибка: " + e.code); }
   }, "btn full");
@@ -684,7 +690,7 @@ function addToGroup(f) {
   const cand = friends.filter(x => x.status === "accepted" && !x.group).map(x => { const u = x.users.find(y => y !== user.uid); return { u, n: x.names[u] }; }).filter(c => !f.users.includes(c.u));
   const members = h("p", { textContent: "Сейчас в группе: " + Object.values(f.names).join(", "), style: "margin:8px 0 0;font-size:13px" });
   if (!cand.length) return modal(h("h1", { textContent: f.title, style: "font-size:22px" }), members, h("p", { textContent: "Все ваши друзья уже в этой группе.", style: "margin-top:10px" }));
-  const boxes = cand.map(c => { const i = h("input", { type: "checkbox" }), l = lbl("var(--txt)", i, c.n); l.c = c; l.i = i; return l; });
+  const boxes = cand.map(c => { const l = chk("var(--txt)", c.n || "Без имени"); l.c = c; return l; });
   const go = mkBtn("Добавить", async () => {
     const sel = boxes.filter(b => b.i.checked); if (!sel.length) return toast("Выберите друзей");
     const up = { users: arrayUnion(...sel.map(b => b.c.u)) }; sel.forEach(b => up["names." + b.c.u] = b.c.n);
@@ -929,7 +935,7 @@ function invitePanel() {
   modal(h("h1", { textContent: "Приглашение", style: "text-align:center;font-size:22px" }), h("label", { textContent: "СРОК ДЕЙСТВИЯ" }), dur, h("label", { textContent: "СКОЛЬКО РАЗ МОЖНО ИСПОЛЬЗОВАТЬ" }), use, go, out);
 }
 /* ---------- ГРУППОВОЙ ГОЛОС (mesh WebRTC через Firestore) ---------- */
-let vc = null;
+let vc = null, vw = null;
 const gv = h("div", { id: "gv" }); document.body.append(gv);
 const vlive = d => Date.now() - (d.hb || d.t || 0) < 90000;
 const vsig = (to, type, data) => addDoc(collection(db, "servers", vc.sid, "voice", to, "sig"), { from: user.uid, type, data: JSON.stringify(data) }).catch(() => {});
@@ -955,6 +961,11 @@ async function joinVoice(sid) {
   try {
     await setDoc(mine, { name: myName(), t, hb: t });
     const old = await getDocs(collection(db, "servers", sid, "voice", user.uid, "sig")); old.docs.forEach(d => deleteDoc(d.ref).catch(() => {}));
+    const others = (await getDocs(collection(db, "servers", sid, "voice"))).docs.filter(d => d.id !== user.uid && vlive(d.data()));
+    if (!others.length && mpath?.[0] === "servers" && mpath[1] === sid) {
+      vc.msg = await addDoc(collection(db, ...mpath), { text: "🔊 " + myName() + " начал(а) голосовой звонок", sys: true, uid: user.uid, name: myName(), createdAt: serverTimestamp() });
+      updateDoc(doc(db, "servers", sid, "channels", mpath[3]), { last: serverTimestamp(), lastBy: user.uid }).catch(() => {});
+    }
   } catch (e) { stream.getTracks().forEach(x => x.stop()); vc = null; return toast("Ошибка: " + e.code); }
   vc.hb = setInterval(() => updateDoc(mine, { hb: Date.now() }).catch(() => {}), 25000);
   vc.unsubs.push(onSnapshot(collection(db, "servers", sid, "voice"), snap => {
@@ -976,11 +987,27 @@ async function joinVoice(sid) {
   vrender();
 }
 function leaveVoice() {
-  const v = vc; if (!v) return; vc = null; clearInterval(v.hb); v.unsubs.forEach(f => f());
+  const v = vc; if (!v) return; vc = null; clearInterval(v.hb);
+  if (v.msg && !v.parts.some(d => d.id !== user.uid && vlive(d))) updateDoc(v.msg, { text: "🔊 Голосовой звонок завершён · " + callFmt(Date.now() - v.t) }).catch(() => {}); v.unsubs.forEach(f => f());
   Object.values(v.peers).forEach(p => { p.pc.close(); if (p.el) p.el.srcObject = null; }); v.stream.getTracks().forEach(x => x.stop());
   deleteDoc(doc(db, "servers", v.sid, "voice", user.uid)).catch(() => {}); gv.style.display = "none";
 }
 addEventListener("pagehide", leaveVoice);
+const vban = h("div", { id: "vban", style: "display:none;align-items:center;gap:10px;padding:8px 12px;background:rgba(35,165,90,.18);border-bottom:1px solid var(--bg1)" }); $("msgs").before(vban);
+function vbanUpdate() {
+  const here = vw && mpath?.[0] === "servers" && mpath[1] === vw.sid, live = vw ? vw.parts.filter(vlive) : [], on = here ? live : [];
+  const vg = $("vgrp"); if (vg) vg.textContent = "🔊" + (vw && cur && vw.sid === cur.id && live.length ? " " + live.length : "");
+  if (!on.length) { vban.style.display = "none"; vban.dataset.k = ""; return; }
+  const key = on.map(x => x.id).join() + (vc ? "1" : "0"); if (vban.dataset.k === key && vban.style.display === "flex") return; vban.dataset.k = key;
+  const b = h("button", { className: "btn", textContent: vc ? "Вы в звонке" : "Присоединиться", style: "padding:6px 12px" }); b.disabled = !!vc; b.onclick = () => joinVoice(vw.sid);
+  vban.replaceChildren(h("span", { style: "flex:1", textContent: "🔊 Идёт голосовой звонок: " + on.map(x => x.name || "?").join(", ") }), b); vban.style.display = "flex";
+}
+function watchVoice(sid) {
+  if (vw && vw.sid === sid) return; vw && vw.un(); vw = null;
+  if (sid) { const o = { sid, parts: [], un: null }; vw = o; o.un = onSnapshot(collection(db, "servers", sid, "voice"), snap => { o.parts = snap.docs.map(d => ({ id: d.id, ...d.data() })); vbanUpdate(); }, () => {}); }
+  vbanUpdate();
+}
+setInterval(vbanUpdate, 3000);
 { const vg = h("button", { className: "ib", id: "vgrp", title: "Голосовой канал сервера (для всех)", textContent: "🔊" }); $("vvid").after(vg);
   vg.onclick = () => vc ? toast("Вы уже в голосовом канале") : mpath?.[0] === "servers" ? joinVoice(mpath[1]) : toast("Откройте канал сервера"); }
 async function createChannel() {
