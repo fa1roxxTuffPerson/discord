@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Discord Clone</title>
+<title>Fa1roxx — Community</title>
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1e1f22"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--bg1:#1e1f22;--bg2:#2b2d31;--bg3:#313338;--hover:#35373c;--txt:#dbdee1;--mut:#949ba4;--acc:#5865f2;--acc2:#4752c4;--red:#da373c;--grn:#23a55a}
@@ -93,6 +93,13 @@ html,body{height:100dvh}#app{height:100dvh;grid-template-columns:1fr}
 .m.ment{background:rgba(250,166,26,.1);box-shadow:inset 3px 0 #faa61a}
 [data-theme=light]{--bg1:#e3e5e8;--bg2:#f2f3f5;--bg3:#fff;--hover:#e8e9eb;--txt:#2e3338;--mut:#5c5e66}
 [data-theme=light] #me{background:#ebedef}
+[data-theme=neon]{--bg1:#090b18;--bg2:#10152a;--bg3:#0b1020;--hover:#1c2340;--txt:#e9f4ff;--mut:#93a4c7;--acc:#a855f7;--acc2:#7e22ce;--red:#fb476b;--grn:#2de2a6}
+[data-theme=neon] #auth{background:radial-gradient(ellipse at 15% 15%,#7c3aed 0,transparent 42%),radial-gradient(ellipse at 85% 85%,#0e7490 0,transparent 45%),#080b18}
+[data-theme=neon] .card,[data-theme=neon] #form,[data-theme=neon] .dlg .card{border:1px solid #8b5cf655;box-shadow:0 0 28px #7c3aed22}
+[data-theme=neon] .sv.on,[data-theme=neon] .btn{box-shadow:0 0 14px #a855f744}
+[data-theme=neon] .ch.on{background:#a855f72a;box-shadow:inset 3px 0 #c084fc}
+[data-theme=neon] .m.ment{background:#a855f71c;box-shadow:inset 3px 0 #c084fc}
+[data-theme=neon] :focus-visible{outline-color:#67e8f9}
 #acp{position:fixed;z-index:50;background:var(--bg2);border:1px solid var(--bg1);border-radius:8px;box-shadow:0 4px 16px #0006;max-height:220px;overflow:auto;display:none;min-width:180px}
 #acp button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 12px;cursor:pointer}
 #acp button.on,#acp button:hover{background:var(--hover)}
@@ -167,7 +174,7 @@ let db; try { db = initializeFirestore(app, { experimentalAutoDetectLongPolling:
 setPersistence(auth, browserLocalPersistence).catch(() => {}); // вход сохраняется после закрытия браузера
 const $ = id => document.getElementById(id);
 const LS = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
-const applyLook = () => { document.documentElement.dataset.theme = LS.get("theme") || "dark"; document.body.style.fontSize = (LS.get("fs") || "15") + "px"; };
+const applyLook = () => { document.documentElement.dataset.theme = LS.get("theme") || "dark"; document.body.style.fontSize = (LS.get("fs") || "15") + "px"; const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = document.documentElement.dataset.theme === "neon" ? "#0b1020" : document.documentElement.dataset.theme === "light" ? "#ffffff" : "#1e1f22"; };
 applyLook();
 queueMicrotask(() => { $("burger").onclick = () => $("app").classList.toggle("nav"); $("bd").onclick = () => $("app").classList.remove("nav"); });
 const h = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach(k => e.append(k)); return e; };
@@ -328,6 +335,31 @@ function rich(text, names) {
   });
   return { frag, mine };
 }
+async function openThread(root, path, channelTitle) {
+  if (threadUnsub) { threadUnsub(); threadUnsub = null; }
+  const listBox = h("div", { style: "max-height:42vh;overflow:auto;margin:12px 0;display:flex;flex-direction:column;gap:8px" });
+  const input = h("input", { className: "in", placeholder: "Ответить в ветке…", maxLength: 2000 });
+  const sendBtn = mkBtn("Отправить ответ", async () => {
+    const text = input.value.trim(); if (!text) return;
+    sendBtn.disabled = true;
+    try { await addDoc(collection(db, ...path), { text, uid: user.uid, name: myName(), createdAt: serverTimestamp(), threadRoot: root.id }); input.value = ""; }
+    catch (e) { toast("Не удалось отправить ответ: " + (e.code || e.message)); }
+    sendBtn.disabled = false; input.focus();
+  }, "btn");
+  input.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } });
+  const preview = h("p", { className: "qt", textContent: (root.name || nameOf(root.uid, root.name)) + ": " + (root.text || "Вложение"), style: "margin-top:10px;white-space:pre-wrap;overflow-wrap:anywhere" });
+  modal(h("h1", { textContent: "🧵 Ветка обсуждения", style: "font-size:21px;text-align:center" }), h("p", { className: "ts", textContent: channelTitle || "Ответы к сообщению" }), preview, listBox, input, sendBtn);
+  const q = query(collection(db, ...path), where("threadRoot", "==", root.id), limit(100));
+  threadUnsub = onSnapshot(q, snap => {
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    listBox.replaceChildren();
+    if (!rows.length) listBox.append(h("p", { className: "empty", textContent: "Пока нет ответов. Начни обсуждение!", style: "margin:18px 0" }));
+    rows.forEach(m => { const row = h("div", { style: "padding:8px 10px;background:var(--bg1);border-radius:8px;overflow-wrap:anywhere" }); row.append(h("b", { textContent: nameOf(m.uid, m.name) + " · " }), h("span", { className: "ts", textContent: fmt(m.createdAt) }), h("p", { textContent: m.text || "Вложение", style: "white-space:pre-wrap;margin-top:4px" })); listBox.append(row); });
+    listBox.scrollTop = listBox.scrollHeight;
+  }, e => toast("Ошибка ветки: " + e.code));
+  input.focus();
+}
+
 function openChat(path, title, ph, admin, emptyText) {
   unsub.msg && unsub.msg(); mpath = path; canDelAll = admin; replyTo = editing = null; bar(); const key = path[path.length - 2]; markSeen(key);
   $("cname").textContent = title; $("inp").disabled = false; $("inp").placeholder = ph; $("inp").focus();
@@ -337,10 +369,11 @@ function openChat(path, title, ph, admin, emptyText) {
     const box = $("msgs"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || !box.children.length;
     box.replaceChildren();
     if (list.length >= cnt) { const more = h("button", { className: "btn g", textContent: "⬆ Показать старые сообщения", style: "margin:8px auto;display:block" }); more.onclick = () => { cnt += 30; subscribe(); }; box.append(more); }
-    if (!list.length) box.append(h("div", { className: "empty", textContent: emptyText }));
+    const displayList = list.filter(m => !m.threadRoot);
+    if (!displayList.length) box.append(h("div", { className: "empty", textContent: emptyText }));
     const mnames = {}; { const src = path[0] === "servers" ? (cur?.names || {}) : (friends.find(x => x.id === path[1])?.names || {}); Object.entries(src).forEach(([u, n]) => { const k = String(nameOf(u, n)).toLowerCase(); if (k) mnames[k] = u; }); }
     let prev = null;
-    list.forEach(m => {
+    displayList.forEach(m => {
       let mine = false;
       if (m.sys) { box.append(h("div", { className: "sysm", textContent: m.text + (m.createdAt ? " · " + hm(m.createdAt) : "") })); prev = null; return; }
       const nm = nameOf(m.uid, m.name), srv = path[0] === "servers", secs = m.createdAt?.seconds || Date.now() / 1000;
@@ -366,6 +399,8 @@ function openChat(path, title, ph, admin, emptyText) {
       const acts = h("div", { className: "acts" }), act = (t, fn, ti) => { const b = h("button", { textContent: t, title: ti || "" }); b.onclick = ev => { ev.stopPropagation(); fn(); }; acts.append(b); };
       ["👍", "❤️", "😂", "🔥", "😮"].forEach(e => act(e, () => react(path, m, e)));
       act("↩", () => setReply(m, nm), "Ответить");
+      const threadCount = list.filter(x => x.threadRoot === m.id).length;
+      act("🧵" + (threadCount ? " " + threadCount : ""), () => openThread(m, path, title), "Открыть ветку обсуждения");
       act("➡️", () => forwardMessage(m), "Переслать");
       if (m.uid === user.uid && m.text) act("✏", () => setEdit(m), "Изменить");
       if (!srv || perm(user.uid, "mod") || canDelAll) act(m.pin ? "📍" : "📌", () => updateDoc(doc(db, ...path, m.id), { pin: !m.pin }).catch(x => toast("Ошибка: " + x.code)), m.pin ? "Открепить" : "Закрепить");
@@ -528,7 +563,8 @@ function modal(...nodes) {
   const x = h("button", { className: "btn g", textContent: "Закрыть" }); x.onclick = closeM;
   $("pc").replaceChildren(...nodes, h("div", { className: "row" }, x)); $("pnl").classList.add("show");
 }
-const closeM = () => { $("pnl").classList.remove("show"); document.querySelectorAll("input[data-avf]").forEach(x => x.remove()); document.querySelectorAll("input[type=file]").forEach(x => { if (x.style.position === "fixed" && x.id !== "file" && x.id !== "vfile") x.remove(); }); };
+let threadUnsub = null;
+const closeM = () => { if (threadUnsub) { threadUnsub(); threadUnsub = null; } $("pnl").classList.remove("show"); document.querySelectorAll("input[data-avf]").forEach(x => x.remove()); document.querySelectorAll("input[type=file]").forEach(x => { if (x.style.position === "fixed" && x.id !== "file" && x.id !== "vfile") x.remove(); }); };
 $("pnl").onclick = e => e.target === $("pnl") && closeM();
 const mkBtn = (t, fn, cls = "btn g") => { const b = h("button", { className: cls, textContent: t, style: "margin:6px 6px 0 0" }); b.onclick = fn; return b; };
 
@@ -559,7 +595,7 @@ async function showProfile(uid, fb) {
       const lim = ms => { logIt((ms ? (ms > 2e11 ? "запрет писать: " : "таймаут " + Math.round(ms / 6e4) + " мин: ") : "снято ограничение: ") + nm); return done(updateDoc(ref, { ["to." + uid]: ms ? Date.now() + ms : deleteField() })); };
       items.push(h("div", { className: "sec" }, h("span", { textContent: "МОДЕРАЦИЯ" })),
         mkBtn("⏱ Таймаут 10 мин", () => lim(6e5)), mkBtn("⏱ Таймаут 1 час", () => lim(36e5)), mkBtn("🔇 Запретить писать", () => lim(3e11)), mkBtn("🔊 Снять ограничение", () => lim(0)),
-        mkBtn("🔨 Забанить", () => confirm("Забанить " + nm + "?") && (logIt("бан: " + nm), done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField(), ["bn." + uid]: nm }))), "btn red"));
+        mkBtn("👢 Кикнуть с сервера", () => confirm("Удалить " + nm + " с сервера? Он сможет вступить снова по приглашению.") && (logIt("кик: " + nm), done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField() })))), mkBtn("🔨 Забанить", () => confirm("Забанить " + nm + "?") && (logIt("бан: " + nm), done(updateDoc(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField(), ["bn." + uid]: nm }))), "btn red"));
     }
   }
   modal(...items);
@@ -584,7 +620,7 @@ function editProfile() {
   f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); f.value = ""; prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { f.value = ""; toast("Не удалось обработать фото, выберите JPG или PNG"); } };
   const sel = (opts, val) => { const e = h("select", { className: "in" }); opts.forEach(([v, t]) => e.append(h("option", { value: v, textContent: t }))); e.value = val; return e; };
   const st = sel([["online", "🟢 В сети"], ["dnd", "🔴 Не беспокоить"], ["invisible", "⚪ Невидимка"]], u.status || "online");
-  const th = sel([["dark", "Тёмная"], ["light", "Светлая"]], LS.get("theme") || "dark"); th.onchange = () => { LS.set("theme", th.value); applyLook(); };
+  const th = sel([["dark", "Тёмная"], ["light", "Светлая"], ["neon", "Fa1roxx Neon"]], LS.get("theme") || "dark"); th.onchange = () => { LS.set("theme", th.value); applyLook(); };
   const fs = sel([["13", "Мелкий"], ["15", "Обычный"], ["17", "Крупный"], ["19", "Очень крупный"]], LS.get("fs") || "15"); fs.onchange = () => { LS.set("fs", fs.value); applyLook(); };
   const nt = mkBtn("🔔 Уведомления в браузере", () => "Notification" in window ? Notification.requestPermission().then(r => toast(r === "granted" ? "Уведомления включены" : "Уведомления запрещены")) : toast("Браузер не поддерживает"));
   const save = mkBtn("Сохранить", async () => {
@@ -1026,9 +1062,13 @@ function vrender() {
   const v = vc;
   const mic = h("button", { className: "ib", textContent: v.stream.getAudioTracks()[0]?.enabled ? "🎤 Микрофон" : "🔇 Микрофон выкл.", title: "Включить/выключить микрофон" });
   const deaf = h("button", { className: "ib", textContent: v.deafened ? "🔇 Звук выкл." : "🔊 Звук вкл.", title: "Отключить/включить звук участников" });
+  const ptt = h("button", { className: "ib", textContent: v.ptt ? "⌨ PTT: ВКЛ" : "⌨ PTT: выкл.", title: "Push-to-talk: удерживайте пробел, чтобы говорить" });
+  const noise = h("button", { className: "ib", textContent: v.noiseSuppression ? "🎧 Шумоподавление: ВКЛ" : "🎧 Шумоподавление: выкл.", title: "Переключить шумоподавление микрофона" });
   const share = h("button", { className: "ib", textContent: v.shareStream ? "⏹ Остановить экран" : "🖥 Показать экран", title: "Поделиться экраном с участниками" });
   const out = h("button", { className: "ib", textContent: "📵 Выйти", title: "Выйти из голосового канала" });
-  mic.onclick = () => { const t = vc?.stream.getAudioTracks()[0]; if (t) t.enabled = !t.enabled; vrender(); };
+  mic.onclick = () => { if (vc?.ptt) { toast("Включён PTT: удерживайте пробел"); return; } const t = vc?.stream.getAudioTracks()[0]; if (t) t.enabled = !t.enabled; vrender(); };
+  ptt.onclick = () => { if (!vc) return; vc.ptt = !vc.ptt; const t = vc.stream.getAudioTracks()[0]; if (t) t.enabled = !vc.ptt; LS.set("voice_ptt", vc.ptt ? "1" : "0"); vrender(); toast(vc.ptt ? "PTT включён: удерживайте пробел для речи" : "PTT выключен"); };
+  noise.onclick = async () => { if (!vc) return; const next = !vc.noiseSuppression; try { const ns = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: next, autoGainControl: true } }); const nt = ns.getAudioTracks()[0], old = vc.stream.getAudioTracks()[0]; for (const p of Object.values(vc.peers)) { const snd = p.pc.getSenders().find(x => x.track?.kind === "audio"); if (snd) await snd.replaceTrack(nt); } if (old) { vc.stream.removeTrack(old); old.stop(); } vc.stream.addTrack(nt); nt.enabled = !vc.ptt; vc.noiseSuppression = next; toast(next ? "Шумоподавление включено" : "Шумоподавление выключено"); vrender(); } catch (e) { toast("Не удалось изменить настройки микрофона: " + (e.message || e.name)); } };
   deaf.onclick = () => { if (!vc) return; vc.deafened = !vc.deafened; Object.values(vc.peers).forEach(p => { if (p.el) p.el.muted = vc.deafened; }); vrender(); };
   share.onclick = shareGroupScreen; out.onclick = leaveVoice;
   const header = h("b", { textContent: "🔊 Голосовой канал" });
@@ -1044,7 +1084,7 @@ function vrender() {
     }
     if (p?.video) row.append(p.video); people.append(row);
   });
-  gv.replaceChildren(header, h("div", { className: "vcontrols" }, mic, deaf, share, out), devices, people); gv.style.display = "block";
+  gv.replaceChildren(header, h("div", { className: "vcontrols" }, mic, ptt, noise, deaf, share, out), devices, people); gv.style.display = "block";
   vdevices();
   const md = gv.querySelector("#vmicdev"); md.onchange = async () => {
     try { const ns = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: md.value }, echoCancellation: true, noiseSuppression: true } }); const nt = ns.getAudioTracks()[0], old = vc.stream.getAudioTracks()[0];
@@ -1071,8 +1111,8 @@ async function shareGroupScreen() {
 }
 async function joinVoice(sid) {
   if (vc) return toast("Вы уже в голосовом канале"); if (pc) return toast("Сначала завершите личный звонок");
-  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch (e) { return toast("Нет доступа к микрофону: " + mediaErr(e)); }
-  const t = Date.now(), mine = doc(db, "servers", sid, "voice", user.uid); vc = { sid, t, stream, peers: {}, unsubs: [], parts: [], hb: null, deafened: false, shareStream: null };
+  const pttEnabled = LS.get("voice_ptt") === "1"; let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); } catch (e) { return toast("Нет доступа к микрофону: " + mediaErr(e)); }
+  const t = Date.now(), mine = doc(db, "servers", sid, "voice", user.uid); if (stream.getAudioTracks()[0]) stream.getAudioTracks()[0].enabled = !pttEnabled; vc = { sid, t, stream, peers: {}, unsubs: [], parts: [], hb: null, deafened: false, shareStream: null, ptt: pttEnabled, noiseSuppression: true };
   try {
     await setDoc(mine, { name: myName(), t, hb: t });
     const old = await getDocs(collection(db, "servers", sid, "voice", user.uid, "sig")); old.docs.forEach(d => deleteDoc(d.ref).catch(() => {}));
@@ -1108,6 +1148,9 @@ function leaveVoice() {
   Object.values(v.peers).forEach(p => { try { p.pc.close(); } catch {} if (p.el) { p.el.srcObject = null; p.el.remove(); } if (p.video) p.video.remove(); if (p.audioCtx) p.audioCtx.close().catch(() => {}); if (p.raf) cancelAnimationFrame(p.raf); }); v.stream.getTracks().forEach(x => x.stop());
   deleteDoc(doc(db, "servers", v.sid, "voice", user.uid)).catch(() => {}); gv.style.display = "none";
 }
+let pttKeyDown = false;
+addEventListener("keydown", e => { if (!vc?.ptt || e.code !== "Space" || e.repeat) return; const tag = e.target?.tagName?.toLowerCase(); if (["input", "textarea", "select"].includes(tag) || e.target?.isContentEditable) return; e.preventDefault(); pttKeyDown = true; const t = vc?.stream.getAudioTracks()[0]; if (t) t.enabled = true; });
+addEventListener("keyup", e => { if (e.code !== "Space") return; pttKeyDown = false; if (vc?.ptt) { const t = vc.stream.getAudioTracks()[0]; if (t) t.enabled = false; } });
 addEventListener("pagehide", leaveVoice);
 const vban = h("div", { id: "vban", style: "display:none;align-items:center;gap:10px;padding:8px 12px;background:rgba(35,165,90,.18);border-bottom:1px solid var(--bg1)" }); $("msgs").before(vban);
 function vbanUpdate() {
