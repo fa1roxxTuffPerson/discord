@@ -290,6 +290,9 @@ input.in:focus,select.in:focus{outline:0;border-color:var(--acc);background:var(
 }
 @media(prefers-reduced-motion:reduce){button{transition:none!important}}
 
+#ownerAdminButton{color:#f0b232;border-color:#f0b23255}#ownerAdminButton:hover{background:#f0b23222}
+#pc .profile-section-title{margin-top:12px}
+#pc .profile-status{margin:8px 0;padding:12px;border-radius:8px;background:var(--bg2)}
 </style>
 </head>
 <body>
@@ -342,6 +345,7 @@ input.in:focus,select.in:focus{outline:0;border-color:var(--acc);background:var(
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField, FieldPath, documentId, Bytes, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyBSyynf_g3goTl2bS05slOiylDnGru0m54",
@@ -432,7 +436,8 @@ function renderRail() {
   const discover = h("button", { className: "sv add", textContent: "🌐", title: "Каталог публичных сообществ" }); discover.onclick = discoverServers;
   const add = h("button", { className: "sv add", textContent: "+", title: "Создать сервер" }); add.onclick = createServer;
   const join = h("button", { className: "sv add", textContent: "→", title: "Присоединиться по коду" }); join.onclick = joinServer;
-  r.append(discover, add, join);
+  const ranks = h("button", { className: "sv add", textContent: "🏆", title: "Таблица лидеров XP" }); ranks.onclick = openLeaderboard;
+  r.append(discover, ranks, add, join);
 }
 function selectServer(id) {
   unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); curCh = null; chans = []; home = false; mpath = null;
@@ -848,9 +853,80 @@ async function loadMyServerPermissions(sid, serverData) {
     console.warn("Fa1roxx permissions could not be loaded", e.code || e);
   }
 }
+const OWNER_UID = "TyCwwKPAAQcjPI6pxCxHU693Ylj1";
+const adminFunctions = getFunctions(app);
+const callAdmin = (name, data) => httpsCallable(adminFunctions, name)(data).then(r => r.data);
+async function openOwnerAdminPanel() {
+  if (!user || user.uid !== OWNER_UID) return toast("Нет доступа");
+  const title = h("h1", { textContent: "🛡 Owner Admin Panel", style: "font-size:22px" });
+  const note = h("p", { className: "ts", textContent: "Действия проверяются сервером. Блокировки и ачивки применяются после развёртывания Firebase Functions и обновления Rules." });
+  const target = h("input", { className: "in", placeholder: "Firebase UID пользователя", maxlength: 128, style: "width:100%;margin:8px 0" });
+  const lookup = mkBtn("Найти пользователя", null, "btn");
+  const result = h("div", { style: "margin-top:12px" });
+  const serverSelect = h("select", { className: "in", style: "width:100%;margin:8px 0" });
+  serverSelect.append(new Option("Загрузка серверов…", ""));
+  const status = h("p", { className: "ts", style: "overflow-wrap:anywhere" });
+  let found = null, serverList = [];
+  const refreshServers = async () => {
+    try {
+      const r = await callAdmin("ownerListServers", {}); serverList = r.servers || [];
+      serverSelect.replaceChildren(new Option("Выберите сервер для бана", ""));
+      serverList.forEach(s => serverSelect.append(new Option(`${s.name} · ${s.members} участников`, s.id)));
+    } catch (e) { serverSelect.replaceChildren(new Option("Не удалось загрузить серверы", "")); status.textContent = adminError(e); }
+  };
+  lookup.onclick = async () => {
+    const uid = target.value.trim(); if (!uid) return toast("Введи UID");
+    lookup.disabled = true; status.textContent = "Ищу пользователя…"; result.replaceChildren(); found = null;
+    try {
+      found = await callAdmin("ownerLookupUser", { uid });
+      result.append(h("div", { className: "profile-status" }, h("div", {}, h("strong", { textContent: found.name || found.email || uid }), h("div", { className: "ts", textContent: "UID: " + uid }), h("div", { className: "ts", textContent: found.email || "Email не указан" }), h("div", { className: "ts", textContent: found.globalBanned ? "⛔ Глобально заблокирован" : "🟢 Глобального бана нет" }))));
+      const achievements = found.achievements || [];
+      result.append(h("div", { className: "profile-section-title", textContent: "ДОСТИЖЕНИЯ" }));
+      result.append(h("p", { className: "ts", textContent: achievements.length ? achievements.map(a => `${a.icon || "🏆"} ${a.name}`).join(" · ") : "Пользовательских ачивок пока нет" }));
+      const give = mkBtn("🏆 Выдать ачивку", async () => {
+        const name = await ask("Выдать достижение", "Название достижения (до 60 символов).", "Например: Founder"); if (!name) return;
+        const icon = await ask("Иконка достижения", "Можно ввести эмодзи.", "🏆", "🏆"); if (icon === null) return;
+        const description = await ask("Описание", "Короткое описание (до 160 символов).", "Особое достижение"); if (description === null) return;
+        try { await callAdmin("ownerSetAchievement", { uid, name: name.slice(0,60), icon: (icon || "🏆").slice(0,12), description: description.slice(0,160) }); toast("Ачивка выдана"); openOwnerAdminPanelWithUid(uid); }
+        catch(e) { toast(adminError(e)); }
+      }, "btn");
+      result.append(give);
+      if (achievements.length) {
+        const removeSelect = h("select", { className: "in", style: "width:100%;margin:8px 0" });
+        achievements.forEach(a => removeSelect.append(new Option(`${a.icon || "🏆"} ${a.name}`, a.id)));
+        const remove = mkBtn("Снять выбранную ачивку", async () => { if (!removeSelect.value) return; if (!confirm("Снять это достижение?")) return; try { await callAdmin("ownerRemoveAchievement", { uid, achievementId: removeSelect.value }); toast("Ачивка снята"); openOwnerAdminPanelWithUid(uid); } catch(e) { toast(adminError(e)); } }, "btn g");
+        result.append(removeSelect, remove);
+      }
+      result.append(h("div", { className: "profile-divider" }), h("div", { className: "profile-section-title", textContent: "МОДЕРАЦИЯ" }), serverSelect);
+      const banServer = mkBtn("🔨 Забанить на выбранном сервере", async () => { if (!serverSelect.value) return toast("Выбери сервер"); if (!confirm("Забанить пользователя на этом сервере?")) return; try { await callAdmin("ownerBanServer", { uid, serverId: serverSelect.value }); toast("Бан на сервере применён"); status.textContent = "Пользователь забанен на выбранном сервере."; } catch(e) { toast(adminError(e)); } }, "btn red");
+      const unbanServer = mkBtn("🔓 Разбанить на выбранном сервере", async () => { if (!serverSelect.value) return toast("Выбери сервер"); try { await callAdmin("ownerUnbanServer", { uid, serverId: serverSelect.value }); toast("Бан снят"); } catch(e) { toast(adminError(e)); } }, "btn g");
+      const globalBan = mkBtn("⛔ Глобальный бан", async () => { const reason = await ask("Глобальный бан", "Причина блокировки (до 240 символов).", "Нарушение правил"); if (reason === null) return; if (!confirm("Глобально заблокировать пользователя во всём приложении?")) return; try { await callAdmin("ownerGlobalBan", { uid, reason: reason.slice(0,240) }); toast("Глобальный бан применён"); status.textContent = "Пользователь глобально заблокирован."; } catch(e) { toast(adminError(e)); } }, "btn red");
+      const globalUnban = mkBtn("✅ Снять глобальный бан", async () => { if (!confirm("Снять глобальную блокировку?")) return; try { await callAdmin("ownerGlobalUnban", { uid }); toast("Глобальный бан снят"); status.textContent = "Глобальная блокировка снята."; } catch(e) { toast(adminError(e)); } }, "btn");
+      result.append(banServer, unbanServer, globalBan, globalUnban);
+      await refreshServers(); status.textContent = "Пользователь найден. Все опасные действия требуют подтверждения.";
+    } catch(e) { status.textContent = adminError(e); }
+    finally { lookup.disabled = false; }
+  };
+  const reload = mkBtn("Обновить список серверов", refreshServers, "btn g");
+  modal(title, note, h("label", { textContent: "ПОИСК ПО FIREBASE UID" }), target, lookup, result, status, reload);
+  await refreshServers();
+}
+function openOwnerAdminPanelWithUid(uid) { openOwnerAdminPanel().then(() => { const field = document.querySelector("#pc input[placeholder='Firebase UID пользователя']"); if (field) { field.value = uid; const btn = [...document.querySelectorAll("#pc button")].find(b => b.textContent === "Найти пользователя"); btn?.click(); } }); }
+function adminError(e) {
+  const code = e?.code || "";
+  if (code.includes("permission-denied") || code.includes("unauthenticated")) return "Нет прав. Проверь вход и деплой Firebase Functions.";
+  if (code.includes("not-found")) return "Пользователь или сервер не найден.";
+  if (code.includes("failed-precondition")) return e.message || "Сначала настрой Firebase Functions.";
+  return e?.message || code || "Неизвестная ошибка";
+}
+
 function paintMe() {
   $("menm").textContent = myName();
   const a = avatar(myName(), user.uid); a.id = "meav"; a.onclick = () => showProfile(user.uid); $("meav").replaceWith(a);
+  let adminButton = $("ownerAdminButton");
+  if (user.uid === OWNER_UID) {
+    if (!adminButton) { adminButton = h("button", { id: "ownerAdminButton", className: "ib", title: "Owner Admin Panel", textContent: "🛡" }); adminButton.onclick = openOwnerAdminPanel; $("me").insertBefore(adminButton, $("cfg")); }
+  } else if (adminButton) adminButton.remove();
 }
 $("cfg").onclick = () => editProfile();
 function modal(...nodes) {
@@ -868,6 +944,8 @@ async function showProfile(uid, fb) {
     try { const d = await getDoc(doc(db, "users", uid)); u = ucache[uid] = d.exists() ? d.data() : {}; }
     catch { u = {}; }
   }
+  let customAchievements = [];
+  try { const achSnap = await getDocs(collection(db, "users", uid, "achievements")); customAchievements = achSnap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 20); } catch {}
   const nm = u.name || fb || "Пользователь", me = user.uid, items = [];
   const shell = h("div", { className: "profile-shell" });
   const banner = h("div", { className: "profile-banner" });
@@ -886,7 +964,15 @@ async function showProfile(uid, fb) {
   top.append(a, identity);
   shell.append(top);
 
+  let progress = {};
+  try { const ps = await getDoc(doc(db, "users", uid, "stats", "progress")); if (ps.exists()) progress = ps.data(); } catch {}
+  const xp = Number(progress.xp || 0), level = Number(progress.level || 1), nextXp = level * level * 100;
   const body = h("div", { className: "profile-body" });
+  const xpCard = h("div", { className: "profile-status", style: "margin-bottom:12px" },
+    h("span", { textContent: "⭐", style: "font-size:22px" }),
+    h("div", {}, h("div", { textContent: "УРОВЕНЬ " + level, style: "font-size:10px;letter-spacing:.08em;color:#b5bac1;font-weight:800;margin-bottom:2px" }),
+      h("div", { textContent: xp + " XP · " + Math.max(0, nextXp - xp) + " XP до следующего уровня", style: "font-weight:650;overflow-wrap:anywhere" })));
+  body.append(xpCard);
   if (u.bio) {
     body.append(h("div", { className: "profile-section-title", textContent: "О СЕБЕ" }));
     body.append(h("div", { className: "profile-bio", textContent: u.bio }));
@@ -912,6 +998,7 @@ async function showProfile(uid, fb) {
   if (u.banner) badges.push(["🌌", "Свой баннер"]);
   if (u.gameStatus) badges.push(["🎮", "Геймер"]);
   if (u.bio) badges.push(["✨", "Заполнил профиль"]);
+  customAchievements.forEach(a => badges.push([a.icon || "🏆", a.name || "Особое достижение"]));
   if (badges.length) {
     body.append(h("div", { className: "profile-divider" }));
     body.append(h("div", { className: "profile-section-title", textContent: "ДОСТИЖЕНИЯ" }));
@@ -1053,6 +1140,18 @@ async function reportPanel(sid) {
   });
   modal(h("h1", { textContent:"🚩 Жалобы участников", style:"font-size:22px;text-align:center" }), h("p", { className:"ts", textContent:"Показаны последние 50 жалоб этого сервера." }), content);
 }
+async function openLeaderboard() {
+  const content = h("div", { style:"display:flex;flex-direction:column;gap:8px;margin-top:12px" });
+  const status = h("p", { className:"ts", textContent:"Загружаю рейтинг…" });
+  modal(h("h1", { textContent:"🏆 Таблица лидеров", style:"font-size:22px;text-align:center" }), h("p", { className:"ts", textContent:"Опыт начисляется автоматически за активность в сообщениях. Для защиты от накрутки начисление ограничено по времени." }), status, content);
+  try {
+    const snap = await getDocs(query(collection(db,"leaderboard"), orderBy("xp","desc"), limit(25)));
+    status.remove();
+    if (snap.empty) { content.append(h("p", { className:"empty", textContent:"Рейтинг пока пуст. Напишите сообщения, чтобы начать получать XP." })); return; }
+    snap.docs.forEach((d,i) => { const x=d.data(); const row=h("button", { className:"btn g", style:"display:flex;justify-content:space-between;align-items:center;text-align:left;gap:12px;width:100%" }); row.append(h("span", { textContent:(i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1)+".")+" "+(x.name||"Пользователь"), style:"overflow:hidden;text-overflow:ellipsis" }), h("b", { textContent:"Ур. "+(x.level||1)+" · "+(x.xp||0)+" XP" })); row.onclick=()=>showProfile(d.id,x.name||"Пользователь"); content.append(row); });
+  } catch(e) { status.textContent="Не удалось загрузить рейтинг: "+(e.code||"ошибка"); }
+}
+
 async function discoverServers() {
   const search = h("input", { className:"in", placeholder:"Поиск публичных сообществ…", maxLength:80 });
   const results = h("div", { style:"display:flex;flex-direction:column;gap:10px;margin-top:12px" });

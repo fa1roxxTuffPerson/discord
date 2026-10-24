@@ -1,6 +1,6 @@
 // Service worker for the Discord-style chat app.
 // Pages always try the network first; only known static assets use the cache.
-const VERSION = "v14";
+const VERSION = "v15";
 const CACHE = "app-" + VERSION;
 const INDEX_URL = new URL("./index.html", self.registration.scope).href;
 const STATIC_URLS = [
