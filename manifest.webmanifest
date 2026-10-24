@@ -1,1 +1,16 @@
-{"name":"Discord Clone","short_name":"Discord","start_url":"./","scope":"./","display":"standalone","background_color":"#1e1f22","theme_color":"#1e1f22","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"icon.svg","sizes":"any","type":"image/svg+xml"}]}
+{
+  "id": "./",
+  "name": "Fa1roxx Chat",
+  "short_name": "Fa1roxx",
+  "description": "Fa1roxx Chat — community and messaging",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1e1f22",
+  "theme_color": "#5865f2",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

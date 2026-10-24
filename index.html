@@ -302,6 +302,7 @@ input.in:focus,select.in:focus{outline:0;border-color:var(--acc);background:var(
 [data-theme="rose"]{--bg1:#251923;--bg2:#382332;--bg3:#452b3d;--hover:#58364c;--txt:#fff0f7;--mut:#d0a9bf;--acc:#ff6eae;--acc2:#e84b91;--red:#ff647c;--grn:#63d6a0;--line:#21141d}
 [data-theme="rose"] #auth{background:radial-gradient(ellipse at 15% 10%,#ff6eae55,transparent 42%),radial-gradient(ellipse at 90% 90%,#8b5cf655,transparent 40%),#251923}
 [data-theme="midnight"] #me,[data-theme="ocean"] #me,[data-theme="rose"] #me{background:var(--bg1)}
+.sticker{font-size:42px;line-height:1.35;display:inline-block;padding:7px 12px;margin:4px 0;border-radius:14px;background:var(--bg1);border:1px solid var(--line);filter:drop-shadow(0 3px 8px #0002)}
 /* Fa1roxx Chat theme pack: 10 additional full palettes */
 [data-theme="amoled"]{--bg1:#000;--bg2:#080808;--bg3:#101010;--hover:#1b1b1b;--txt:#f5f5f5;--mut:#a0a0a0;--acc:#ffffff;--acc2:#d4d4d4;--red:#ff4d67;--grn:#35d07f;--line:#050505}
 [data-theme="amoled"] #auth{background:radial-gradient(ellipse at 20% 10%,#333333,transparent 45%),#000}
@@ -350,12 +351,12 @@ html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{an
   <nav id="rail" aria-label="Серверы"></nav>
   <aside id="side">
     <div class="hd"><span id="sname">Выберите сервер</span><button class="ib" id="menu" title="Меню сервера" hidden>⋮</button></div>
-    <div class="side-search-wrap"><span aria-hidden="true">⌕</span><input id="sideSearch" type="search" maxlength="80" autocomplete="off" aria-label="Поиск каналов и друзей" placeholder="Поиск каналов и друзей"><kbd>Ctrl K</kbd></div>
+    <div class="side-search-wrap"><span aria-hidden="true">⌕</span><input id="sideSearch" type="search" maxlength="80" autocomplete="off" aria-label="Поиск каналов и друзей" placeholder="Поиск каналов и друзей"><kbd>Ctrl K · команды</kbd></div>
     <div id="chs"></div>
     <div id="me"><div class="av" id="meav"></div><span class="nm" id="menm"></span><button class="ib" id="cfg" title="Мой профиль">⚙</button><button class="ib" id="out" title="Выйти">⎋</button></div>
   </aside>
   <main id="main">
-    <div class="hd" style="justify-content:flex-start"><button class="ib burger" id="burger" aria-label="Меню">☰</button><span id="cname" style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"># —</span><button class="ib" id="vcall" title="Голосовой звонок">📞</button><button class="ib" id="vvid" title="Видеозвонок">📹</button><button class="ib" id="pins" title="Закреплённые">📌</button><button class="ib" id="savedMsgs" title="Избранные сообщения (Ctrl+Shift+S)">🔖</button><button class="ib" id="srch" title="Поиск">🔍</button></div>
+    <div class="hd" style="justify-content:flex-start"><button class="ib burger" id="burger" aria-label="Меню">☰</button><span id="cname" style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"># —</span><button class="ib" id="vcall" title="Голосовой звонок">📞</button><button class="ib" id="vvid" title="Видеозвонок">📹</button><button class="ib" id="pins" title="Закреплённые">📌</button><button class="ib" id="savedMsgs" title="Избранные сообщения (Ctrl+Shift+S)">🔖</button><button class="ib" id="notifCenter" title="Центр уведомлений (Ctrl+Shift+N)">🔔</button><button class="ib" id="srch" title="Поиск">🔍</button></div>
     <div id="msgs"><div class="empty">Создайте сервер или присоединитесь к существующему по коду приглашения.</div></div>
     <div id="ty"></div>
     <div id="rb"></div>
@@ -405,7 +406,7 @@ const h = (tag, props = {}, ...kids) => { const e = document.createElement(tag);
 const ucache = {};
 const colors = ["#5865f2","#eb459e","#f0b232","#23a55a","#00a8fc","#ed4245","#9b59b6"];
 const colorOf = s => colors[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length];
-const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url("${u.avatar}")`; a.style.backgroundSize = "cover"; a.style.backgroundPosition = "center"; a.classList.add("img"); } else a.style.background = colorOf(name); return a; };
+const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url("${u.avatar}")`; a.style.backgroundSize = "cover"; a.style.backgroundPosition = "center"; a.classList.add("img"); } else a.style.background = colorOf(name); if (uid && user && uid === user.uid) { const frame = LS.get("fa1roxx:cosmetic:frame:" + uid); if (frame === "neon") a.style.outline = "3px solid #a855f7"; else if (frame === "gold") a.style.outline = "3px solid #f0b232"; else if (frame === "ice") a.style.outline = "3px solid #20c4d8"; if (frame) a.style.outlineOffset = "2px"; } return a; };
 const toast = t => { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = "none", 2200); };
 
 let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null, allChans = [], curList = [], currentServerPerms = [];
@@ -548,8 +549,10 @@ function applySideFilter() {
 $("sideSearch").addEventListener("input", applySideFilter);
 addEventListener("keydown", e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-    e.preventDefault(); $("sideSearch").focus(); $("sideSearch").select();
+    e.preventDefault(); openCommandPalette();
   }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "n") { e.preventDefault(); openNotificationCenter(); }
+  if (e.key === "Escape" && $("pnl").classList.contains("show")) closeM();
   if (e.key === "Escape" && document.activeElement === $("sideSearch") && $("sideSearch").value) {
     $("sideSearch").value = ""; applySideFilter();
   }
@@ -696,6 +699,7 @@ function openChat(path, title, ph, admin, emptyText) {
       if (m.pin) body.append(h("div", { className: "ts", textContent: "📌 закреплено" }));
       if (m.re) { const q = h("div", { className: "qt", textContent: "↩ " + m.re.name + ": " + m.re.text }); q.onclick = e => { e.stopPropagation(); const t = [...$("msgs").children].find(x => x.dataset.id === m.re.id); if (!t) return toast("Исходное сообщение далеко или удалено"); t.scrollIntoView({ block: "center", behavior: "smooth" }); t.classList.add("flash"); setTimeout(() => t.classList.remove("flash"), 1500); }; body.append(q); }
       if (m.text) { const rt = rich(m.text, mnames); if (rt.mine && m.uid !== user.uid) mine = true; body.append(h("div", { className: "t" }, rt.frag, m.edited ? h("span", { className: "ts", textContent: " (изменено)" }) : "")); }
+      if (m.sticker) body.append(h("div", { className: "sticker", role: "img", "aria-label": "Стикер", textContent: m.sticker }));
       if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото", loading: "lazy", decoding: "async" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
       if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
       if (m.file?.data) { const a = h("a", { href: m.file.data, download: m.file.name || "attachment", textContent: "📎 " + (m.file.name || "Файл") + " · " + (m.file.size / 1024).toFixed(1) + " КБ", style: "display:inline-block;margin-top:5px;color:#00a8fc;overflow-wrap:anywhere" }); body.append(a); }
@@ -709,7 +713,7 @@ function openChat(path, title, ph, admin, emptyText) {
       let av; if (first) { av = avatar(nm, m.uid); av.onclick = () => showProfile(m.uid, nm); } else av = h("div", { className: "gap", textContent: hm(m.createdAt) });
       const row = h("div", { className: "m" + (first ? " first" : "") + (mine ? " ment" : "") }, av, body); row.dataset.id = m.id;
       const acts = h("div", { className: "acts" }), act = (t, fn, ti) => { const b = h("button", { textContent: t, title: ti || "" }); b.onclick = ev => { ev.stopPropagation(); fn(); }; acts.append(b); };
-      ["👍", "❤️", "😂", "🔥", "😮"].forEach(e => act(e, () => react(path, m, e)));
+      ["👍", "❤️", "😂", "🔥", "😮", "💀", "🥰", "🎉", "👀", "🤝"].forEach(e => act(e, () => react(path, m, e)));
       act("↩", () => setReply(m, nm), "Ответить");
       const threadCount = list.filter(x => x.threadRoot === m.id).length;
       act("🧵" + (threadCount ? " " + threadCount : ""), () => openThread(m, path, title), "Открыть ветку обсуждения");
@@ -732,13 +736,31 @@ function openChat(path, title, ph, admin, emptyText) {
     if (mpath !== path) return;
     const old = new Set(list.map(m => m.id)), had = list.length > 0;
     list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); curList = list;
-    if (had && document.hidden && "Notification" in window && Notification.permission === "granted" && ucache[user.uid]?.status !== "dnd") list.filter(m => !old.has(m.id) && m.uid !== user.uid && m.createdAt).slice(-3).forEach(async m => { try { const opts = { body: (m.text || (m.img ? "📷 Фото" : m.vid ? "🎬 Видео" : m.file ? "📎 " + m.file.name : "📎 Вложение")).slice(0, 100), icon: "icon-192.png", tag: "msg-" + m.id, data: { url: location.href } }; const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.ready : null; if (reg?.showNotification) await reg.showNotification(nameOf(m.uid, m.name) + " · " + title, opts); else new Notification(nameOf(m.uid, m.name) + " · " + title, opts); } catch {} });
+    if (had) list.filter(m => !old.has(m.id) && m.uid !== user.uid && m.createdAt).forEach(m => rememberNotification(m, path, title));
+    const notificationMode = LS.get("notificationMode") || "all";
+    if (notificationMode !== "off" && had && document.hidden && "Notification" in window && Notification.permission === "granted" && ucache[user.uid]?.status !== "dnd") list.filter(m => {
+      if (old.has(m.id) || m.uid === user.uid || !m.createdAt) return false;
+      if (notificationMode === "mentions") return /@everyone|@here/i.test(m.text || "") || (m.text || "").toLowerCase().includes("@" + myName().toLowerCase());
+      return true;
+    }).slice(-3).forEach(async m => { try { const isMention = /@everyone|@here/i.test(m.text || "") || (m.text || "").toLowerCase().includes("@" + myName().toLowerCase()); const opts = { body: (isMention ? "🔔 Упоминание · " : "") + (m.text || (m.img ? "📷 Фото" : m.vid ? "🎬 Видео" : m.file ? "📎 " + m.file.name : m.sticker ? "😀 Стикер" : "📎 Вложение")).slice(0, 100), icon: "icon-192.png", tag: "msg-" + m.id, data: { url: location.href } }; const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.ready : null; if (reg?.showNotification) await reg.showNotification(nameOf(m.uid, m.name) + " · " + title, opts); else new Notification(nameOf(m.uid, m.name) + " · " + title, opts); } catch {} });
     draw(); markSeen(key); refreshDots();
   }, e => toast("Ошибка чтения: " + e.code));
   };
   subscribe();
 }
 const sendTimes = [];
+// XP is browser-local because the currently available Firestore Rules do not grant users write access to users/{uid}/stats/progress.
+// This avoids requiring a Rules change, Blaze, or a server function; it does not sync across devices.
+function awardMessageXp() {
+  if (!user) return;
+  const key = "fa1roxx:xp-cooldown:" + user.uid, xpKey = "fa1roxx:xp:" + user.uid, now = Date.now();
+  const last = Number(LS.get(key) || 0);
+  if (now - last < 60000) return;
+  LS.set(key, String(now));
+  const xp = Math.max(0, Number(LS.get(xpKey) || 0)) + 5;
+  LS.set(xpKey, String(xp));
+  ucache[user.uid] = { ...(ucache[user.uid] || {}), _localXp: xp };
+}
 async function send(data) {
   if (!mpath) return false;
   if (mpath[0] === "servers" && cur) {
@@ -755,6 +777,7 @@ async function send(data) {
   try {
     const { id: mid, ...rest } = data, body = { ...rest, ...(replyTo ? { re: replyTo } : {}), uid: user.uid, name: myName(), createdAt: serverTimestamp() };
     if (mid) await setDoc(doc(db, ...mpath, mid), body); else await addDoc(collection(db, ...mpath), body);
+    if (!mid && !data.sys && (data.text || data.img || data.vid || data.file || data.aud || data.sticker)) awardMessageXp();
     replyTo = null; bar();
     const l = { last: serverTimestamp(), lastBy: user.uid };
     if (mpath[0] === "servers") { updateDoc(doc(db, "servers", mpath[1], "channels", mpath[3]), l).catch(() => {}); updateDoc(doc(db, "servers", mpath[1]), { ...l, lastCh: mpath[3] }).catch(() => {}); }
@@ -888,7 +911,9 @@ $("gif").onclick = () => {
   const search = mkBtn("🔎 Найти GIF на GIPHY", () => { const term = q.value.trim(); if (!term) return toast("Введите запрос"); window.open("https://giphy.com/search/" + encodeURIComponent(term), "_blank", "noopener,noreferrer"); }, "btn");
   const url = h("input", { className: "in", placeholder: "Вставьте прямую HTTPS-ссылку на GIF" });
   const sendGif = mkBtn("Отправить GIF", async () => { const u = url.value.trim(); if (!/^https:\/\//i.test(u)) return toast("Нужна HTTPS-ссылка на GIF"); try { const ok = await send({ text: "", img: u, gif: true }); if (ok) closeM(); } catch { toast("Не удалось отправить GIF"); } }, "btn full");
-  modal(h("h1", { textContent: "GIF-поиск", style: "text-align:center;font-size:22px" }), h("p", { textContent: "Поиск откроется в новой вкладке. Вставь сюда прямую HTTPS-ссылку на файл GIF (обычно заканчивается на .gif или ведёт на media.tenor.com / media.giphy.com). Обычная страница tenor.com/gif/... или giphy.com/gifs/... не является ссылкой на файл. Можно также прикрепить GIF-файл кнопкой 📎.", style: "margin:8px 0" }), q, search, h("label", { textContent: "ПРЯМАЯ HTTPS-ССЫЛКА НА GIF" }), url, sendGif);
+  const stickers = h("div", { style:"display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:10px 0" });
+  ["😂","😭","💀","🔥","🗿","🐸","😎","🥹","🤡","👀","❤️‍🔥","🎉","🫡","💯","✨","🫠"].forEach(st=>{ const b=mkBtn(st,async()=>{ const ok=await send({text:"",sticker:st}); if(ok) closeM(); },"btn g"); b.style.cssText+=";font-size:27px;min-height:54px"; stickers.append(b); });
+  modal(h("h1", { textContent: "GIF и стикеры", style: "text-align:center;font-size:22px" }), h("p", { textContent: "GIF-поиск открывает GIPHY отдельно; отправка внешнего GIF требует прямую HTTPS-ссылку. Ниже — встроенные текстовые стикеры, которые отправляются как отдельные сообщения и не требуют платного хранилища.", style: "margin:8px 0" }), stickers, h("label", { textContent: "НАЙТИ GIF" }), q, search, h("label", { textContent: "ПРЯМАЯ HTTPS-ССЫЛКА НА GIF" }), url, sendGif);
 };
 
 /* ---------- PROFILES / ROLES / MODERATION ---------- */
@@ -1017,6 +1042,75 @@ const closeM = () => { if (threadUnsub) { threadUnsub(); threadUnsub = null; } $
 $("pnl").onclick = e => e.target === $("pnl") && closeM();
 const mkBtn = (t, fn, cls = "btn g") => { const b = h("button", { className: cls, textContent: t, style: "margin:6px 6px 0 0" }); b.onclick = fn; return b; };
 
+// Local notification inbox: stores only messages observed by this signed-in browser.
+function localInboxKey() { return "fa1roxx:inbox:" + (user?.uid || "guest"); }
+function readLocalInbox() { try { return JSON.parse(LS.get(localInboxKey()) || "[]").filter(x => x && x.id && Array.isArray(x.path)); } catch { return []; } }
+function rememberNotification(message, path, title) {
+  if (!user || !message || message.uid === user.uid) return;
+  const isMention = /@everyone|@here/i.test(message.text || "") || (message.text || "").toLowerCase().includes("@" + myName().toLowerCase());
+  const body = (message.text || (message.img ? "📷 Фото" : message.vid ? "🎬 Видео" : message.file ? "📎 " + message.file.name : message.sticker ? "😀 Стикер" : message.poll ? "📊 Опрос" : "📎 Вложение")).slice(0, 160);
+  const key = localInboxKey(), items = readLocalInbox();
+  if (items.some(x => x.id === message.id)) return;
+  items.unshift({ id: message.id, uid: message.uid || "", name: nameOf(message.uid, message.name), title: title || "Чат", body, isMention, path: [...path], at: Date.now(), read: false });
+  LS.set(key, JSON.stringify(items.slice(0, 100)));
+  const b = $("notifCenter"); if (b) b.textContent = "🔔" + (items.filter(x => !x.read).length ? "•" : "");
+}
+function openNotificationCenter() {
+  if (!user) return toast("Сначала войдите в аккаунт");
+  const items = readLocalInbox(), list = h("div", { style: "display:grid;gap:8px;max-height:55vh;overflow:auto;margin-top:12px" });
+  const title = h("h1", { textContent: "🔔 Центр уведомлений", style: "font-size:22px" });
+  const note = h("p", { className: "ts", textContent: "Уведомления собираются из чатов, открытых в этом браузере; история локальная и не синхронизируется.", style: "margin-top:6px" });
+  const markAll = mkBtn("✓ Отметить всё прочитанным", () => { LS.set(localInboxKey(), JSON.stringify(readLocalInbox().map(x => ({...x, read:true})))); closeM(); openNotificationCenter(); });
+  const clear = mkBtn("Очистить", () => { LS.set(localInboxKey(), "[]"); closeM(); openNotificationCenter(); });
+  if (!items.length) list.append(h("p", { className:"empty", textContent:"Пока нет сохранённых уведомлений." }));
+  items.forEach(item => {
+    const b = h("button", { type:"button", style:"text-align:left;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px;cursor:pointer" });
+    b.append(h("div", { textContent:(item.read?"":"🔵 ") + (item.isMention?"🔔 Упоминание · ":"") + item.name, style:"font-weight:700" }), h("div", { textContent:item.title, style:"font-size:12px;color:var(--mut);margin:2px 0" }), h("div", { textContent:item.body, style:"overflow-wrap:anywhere" }), h("div", { textContent:new Date(item.at).toLocaleString(), style:"font-size:11px;color:var(--mut);margin-top:4px" }));
+    b.onclick = async () => {
+      const next = readLocalInbox().map(x => x.id === item.id ? {...x,read:true} : x); LS.set(localInboxKey(), JSON.stringify(next)); closeM();
+      try { const path = item.path; if (path[0] === "servers") { await selectServer(path[1]); const ch = await getDoc(doc(db,"servers",path[1],"channels",path[3])); openChat(path, "# " + (ch.exists()?ch.data().name:item.title), "Написать сообщение", false, "Пока нет сообщений"); } else { openChat(path, item.title, "Написать сообщение", false, "Пока нет сообщений"); } } catch { toast("Не удалось открыть чат"); }
+    };
+    list.append(b);
+  });
+  modal(title, note, markAll, clear, list);
+  const unread = items.filter(x=>!x.read).length; $("notifCenter").textContent = "🔔" + (unread ? "•" : "");
+}
+$("notifCenter").onclick = openNotificationCenter;
+
+let deferredInstallPrompt = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstallPrompt = e; });
+async function installPWA() {
+  if (deferredInstallPrompt) { const prompt = deferredInstallPrompt; deferredInstallPrompt = null; await prompt.prompt(); const choice = await prompt.userChoice.catch(() => null); toast(choice?.outcome === "accepted" ? "Установка подтверждена" : "Установка отменена"); return; }
+  toast("Если браузер поддерживает установку: меню браузера → «Установить приложение» или «Добавить на главный экран».");
+}
+function openCommandPalette() {
+  if (!user) return toast("Сначала войдите в аккаунт");
+  const search = h("input", { className:"in", placeholder:"Найти действие…", autocomplete:"off", style:"margin-top:12px" });
+  const list = h("div", { style:"display:grid;gap:6px;margin-top:10px;max-height:55vh;overflow:auto" });
+  const actions = [
+    ["🔔 Центр уведомлений", "уведомления notifications", openNotificationCenter],
+    ["🛍 Магазин оформления", "магазин темы косметика shop", openCosmeticShop],
+    ["👤 Мой профиль", "профиль настройки profile", editProfile],
+    ["➕ Создать сервер", "сервер создать create", createServer],
+    ["🔗 Присоединиться к серверу", "сервер join приглашение", joinServer],
+    ["⌕ Поиск каналов и друзей", "поиск каналы друзья search", () => { closeM(); $("sideSearch").focus(); $("sideSearch").select(); }],
+    ["💬 Перейти к сообщению", "чат сообщение input", () => { closeM(); if (!$ ("inp").disabled) $("inp").focus(); else toast("Сначала выберите канал"); }],
+    ["🏠 Главная", "домой главная home", () => { closeM(); renderHome(); }],
+    ["📲 Установить приложение", "pwa install установить приложение", () => { closeM(); installPWA(); }]
+  ];
+  const draw = () => { const q = search.value.trim().toLowerCase(); list.replaceChildren(); actions.filter(a => !q || (a[0]+" "+a[1]).toLowerCase().includes(q)).forEach(a => { const b=mkBtn(a[0],()=>{closeM();a[2]();}); b.style.textAlign="left"; b.style.margin="0"; list.append(b); }); if (!list.children.length) list.append(h("p",{className:"empty",textContent:"Команды не найдены"})); };
+  search.addEventListener("input", draw); draw(); modal(h("h1",{textContent:"⌘ Быстрые команды",style:"font-size:22px"}),search,list); search.focus();
+}
+
+function openCosmeticShop() {
+  if (!user) return toast("Сначала войдите в аккаунт");
+  const xpKey="fa1roxx:xp:"+user.uid, ownedKey="fa1roxx:cosmetic:owned:"+user.uid, frameKey="fa1roxx:cosmetic:frame:"+user.uid;
+  const items=[{id:"neon",name:"Неоновая рамка",emoji:"💜",cost:25},{id:"gold",name:"Золотая рамка",emoji:"👑",cost:60},{id:"ice",name:"Ледяная рамка",emoji:"🧊",cost:45}];
+  const balance=()=>Math.max(0,Number(LS.get(xpKey)||0)); const owned=()=>{try{return JSON.parse(LS.get(ownedKey)||"[]")}catch{return[]}};
+  const panel=h("div",{style:"display:grid;gap:10px;margin-top:12px"});
+  const draw=()=>{panel.replaceChildren(h("p",{textContent:"⭐ Баланс: "+balance()+" XP",style:"font-weight:700"}),h("p",{className:"ts",textContent:"Покупки и рамка хранятся только в этом браузере. XP не синхронизируется."})); items.forEach(it=>{const has=owned().includes(it.id), equipped=LS.get(frameKey)===it.id;const row=h("div",{style:"display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border-radius:8px"});row.append(h("span",{textContent:it.emoji,style:"font-size:26px"}),h("div",{style:"flex:1;min-width:0"},h("div",{textContent:it.name,style:"font-weight:700"}),h("div",{textContent:has?"Разблокировано":"Цена: "+it.cost+" XP",style:"font-size:12px;color:var(--mut)"})));const b=mkBtn(equipped?"Надето":has?"Надеть":"Купить",()=>{if(has){LS.set(frameKey,equipped?"":it.id);draw();paintMe();toast(equipped?"Рамка снята":"Рамка применена");return;}if(balance()<it.cost)return toast("Не хватает XP");LS.set(xpKey,String(balance()-it.cost));LS.set(ownedKey,JSON.stringify([...owned(),it.id]));LS.set(frameKey,it.id);draw();paintMe();toast("Косметика куплена и надета");});b.disabled=equipped;row.append(b);panel.append(row);});}; draw(); modal(h("h1",{textContent:"🛍 Магазин оформления",style:"font-size:22px"}),panel);
+}
+
 async function showProfile(uid, fb) {
   let u = ucache[uid];
   if (!u || !u.name) {
@@ -1045,6 +1139,10 @@ async function showProfile(uid, fb) {
 
   let progress = {};
   try { const ps = await getDoc(doc(db, "users", uid, "stats", "progress")); if (ps.exists()) progress = ps.data(); } catch {}
+  if (uid === user.uid) {
+    const localXp = Math.max(0, Number(LS.get("fa1roxx:xp:" + uid) || 0));
+    progress = { ...progress, xp: localXp, level: Math.max(1, Math.floor(Math.sqrt(localXp / 100)) + 1), localOnly: true };
+  }
   const xp = Number(progress.xp || 0), level = Number(progress.level || 1), nextXp = level * level * 100;
   const body = h("div", { className: "profile-body" });
   const xpCard = h("div", { className: "profile-status", style: "margin-bottom:12px" },
@@ -1052,6 +1150,7 @@ async function showProfile(uid, fb) {
     h("div", {}, h("div", { textContent: "УРОВЕНЬ " + level, style: "font-size:10px;letter-spacing:.08em;color:#b5bac1;font-weight:800;margin-bottom:2px" }),
       h("div", { textContent: xp + " XP · " + Math.max(0, nextXp - xp) + " XP до следующего уровня", style: "font-weight:650;overflow-wrap:anywhere" })));
   body.append(xpCard);
+  if (uid === user.uid) body.append(h("p", { className:"ts", textContent:"XP начисляется за активность с ограничением частоты и хранится только в этом браузере; между устройствами не синхронизируется.", style:"margin-top:6px" }));
   if (u.bio) {
     body.append(h("div", { className: "profile-section-title", textContent: "О СЕБЕ" }));
     body.append(h("div", { className: "profile-bio", textContent: u.bio }));
@@ -1070,6 +1169,11 @@ async function showProfile(uid, fb) {
   }
 
   const badges = [];
+  if (xp >= 5) badges.push(["💬", "Первое сообщение · XP"]);
+  if (xp >= 100) badges.push(["⭐", "100 XP"]);
+  if (xp >= 500) badges.push(["🔥", "500 XP"]);
+  if (level >= 5) badges.push(["🏅", "Уровень 5+"]);
+  if (level >= 10) badges.push(["💎", "Уровень 10+"]);
   if (cur && cur.owner === uid) badges.push(["👑", "Создатель сервера"]);
   else if (servers.some(s => s.owner === uid)) badges.push(["👑", "Создатель"]);
   if (cur && cur.members?.includes(uid) && roleOf(uid)) badges.push(["🛡️", "Участник команды"]);
@@ -1143,7 +1247,9 @@ function editProfile() {
   const motion = h("input", { type:"checkbox", checked:LS.get("reduceMotion") === "1", style:"width:18px;height:18px;vertical-align:middle;margin-right:8px" });
   motion.onchange = () => { LS.set("reduceMotion", motion.checked ? "1" : "0"); applyLook(); };
   const motionLabel = h("label", { style:"display:flex;align-items:center;margin:10px 0;cursor:pointer" }, motion, h("span", { textContent:"Уменьшить анимации" }));
-  const nt = mkBtn("🔔 Уведомления в браузере", () => "Notification" in window ? Notification.requestPermission().then(r => toast(r === "granted" ? "Уведомления включены" : "Уведомления запрещены")) : toast("Браузер не поддерживает"));
+  const nt = mkBtn("🔔 Разрешить уведомления в браузере", () => "Notification" in window ? Notification.requestPermission().then(r => toast(r === "granted" ? "Разрешение на уведомления выдано" : "Уведомления запрещены браузером")) : toast("Браузер не поддерживает уведомления"));
+  const notificationMode = sel([["all", "Все новые сообщения"], ["mentions", "Только упоминания меня"], ["off", "Отключить уведомления"]], LS.get("notificationMode") || "all");
+  notificationMode.onchange = () => { LS.set("notificationMode", notificationMode.value); toast("Настройка уведомлений сохранена в этом браузере"); };
   const save = mkBtn("Сохранить", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите ник");
     try {
@@ -1155,7 +1261,8 @@ function editProfile() {
       paintMe(); renderMembers(); redraw && redraw(); if (home) renderHome(); closeM(); toast("Профиль обновлён");
     } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
   }, "btn full");
-  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, bp, bprev, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "ТЕКСТОВЫЙ СТАТУС" }), statusText, h("label", { textContent: "ВО ЧТО ИГРАЮ (ВРУЧНУЮ)" }), gameStatus, h("label", { textContent: "СТАТУС В СЕТИ" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "АКЦЕНТНЫЙ ЦВЕТ" }), accent, swatches, resetAccent, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, compactLabel, motionLabel, nt, save);
+  const shop = mkBtn("🛍 Магазин оформления", openCosmeticShop);
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, bp, bprev, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "ТЕКСТОВЫЙ СТАТУС" }), statusText, h("label", { textContent: "ВО ЧТО ИГРАЮ (ВРУЧНУЮ)" }), gameStatus, h("label", { textContent: "СТАТУС В СЕТИ" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "АКЦЕНТНЫЙ ЦВЕТ" }), accent, swatches, resetAccent, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, compactLabel, motionLabel, h("label", { textContent: "УВЕДОМЛЕНИЯ" }), notificationMode, nt, shop, save);
 }
 const PAL = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c", "#3498db", "#5865f2", "#9b59b6", "#e91e63", "#95a5a6"];
 function colorPick(init) {
@@ -1430,7 +1537,7 @@ function channelModal(ch) {
   const del = mkBtn("Удалить канал", () => allChans.length > 1 ? confirm("Удалить канал «" + ch.name + "»?") && deleteDoc(ref).then(closeM) : toast("Нельзя удалить последний канал"), "btn red");
   modal(h("h1", { textContent: (ch.type === "voice" ? "🔊 " : "# ") + ch.name, style: "font-size:22px" }), h("p", { textContent: rs.length ? "Отметьте роли, которым открыт канал. Если ничего не отмечено, канал доступен всем." : "Сначала создайте роли.", style: "margin:8px 0 0;font-size:13px" }), ...boxes, save, del);
 }
-const msgCard = m => h("div", { style: "margin-top:12px;padding:8px;background:var(--bg1);border-radius:6px" }, h("div", { className: "ts", textContent: nameOf(m.uid, m.name) + " · " + fmt(m.createdAt) }), h("div", { textContent: m.text || (m.img ? "📷 Фото" : m.vid ? "🎬 Видео" : m.aud ? "🎤 Голосовое" : ""), style: "white-space:pre-wrap;overflow-wrap:anywhere" }));
+const msgCard = m => h("div", { style: "margin-top:12px;padding:8px;background:var(--bg1);border-radius:6px" }, h("div", { className: "ts", textContent: nameOf(m.uid, m.name) + " · " + fmt(m.createdAt) }), h("div", { textContent: m.text || (m.sticker ? m.sticker + " Стикер" : m.img ? "📷 Фото / GIF" : m.vid ? "🎬 Видео" : m.aud ? "🎤 Голосовое" : m.file ? "📎 " + m.file.name : m.poll ? "📊 Опрос" : "Вложение"), style: "white-space:pre-wrap;overflow-wrap:anywhere" }));
 $("pins").onclick = async () => {
   if (!mpath) return toast("Откройте канал или чат");
   let els = [];
@@ -1439,9 +1546,33 @@ $("pins").onclick = async () => {
 };
 $("srch").onclick = () => {
   if (!mpath) return toast("Откройте канал или чат");
-  const q = h("input", { className: "in", placeholder: "Поиск по последним 100 сообщениям" }), res = h("div");
-  q.oninput = () => { const v = q.value.trim().toLowerCase(); res.replaceChildren(...(v ? curList.filter(m => (m.text || "").toLowerCase().includes(v) || nameOf(m.uid, m.name).toLowerCase().includes(v)).reverse().slice(0, 30).map(msgCard) : [])); };
-  modal(h("h1", { textContent: "🔍 Поиск", style: "font-size:22px" }), q, res); q.focus();
+  const q = h("input", { className: "in", placeholder: "Текст сообщения или имя автора", maxLength: 120 });
+  const author = h("select", { className: "in" }); author.append(new Option("Все авторы", ""));
+  [...new Map(curList.map(m => [m.uid, nameOf(m.uid, m.name)])).entries()].sort((a,b)=>a[1].localeCompare(b[1],"ru")).forEach(([uid,n])=>author.append(new Option(n,uid)));
+  const kind = h("select", { className: "in" }); [["all","Все типы"],["text","Текст"],["mention","С упоминаниями"],["image","Фото / GIF"],["video","Видео"],["file","Файлы"],["poll","Опросы"],["sticker","Стикеры"]].forEach(([v,t])=>kind.append(new Option(t,v)));
+  const from = h("input", { className: "in", type: "date", "aria-label":"Дата с" }), to = h("input", { className: "in", type: "date", "aria-label":"Дата по" });
+  const count = h("p", { className:"ts", textContent:"Поиск выполняется по сообщениям, уже загруженным в этот чат." }); const res = h("div");
+  const run = () => {
+    const v=q.value.trim().toLowerCase(), authorId=author.value, type=kind.value, fromMs=from.value?new Date(from.value+"T00:00:00").getTime():0, toMs=to.value?new Date(to.value+"T23:59:59").getTime():Infinity;
+    const rows=curList.filter(m=>{
+      const text=String(m.text||"").toLowerCase(), nm=String(nameOf(m.uid,m.name)||"").toLowerCase(), date=ms(m.createdAt)||0;
+      if(v&&!text.includes(v)&&!nm.includes(v)) return false;
+      if(authorId&&m.uid!==authorId) return false;
+      if(date&&(date<fromMs||date>toMs)) return false;
+      if(type==="text"&&(!m.text||m.img||m.vid||m.file||m.poll||m.sticker)) return false;
+      if(type==="mention"&&!/@[\w\p{L}]+/u.test(m.text||"")) return false;
+      if(type==="image"&&!m.img) return false;
+      if(type==="video"&&!m.vid) return false;
+      if(type==="file"&&!m.file) return false;
+      if(type==="poll"&&!m.poll) return false;
+      if(type==="sticker"&&!m.sticker) return false;
+      return true;
+    }).reverse().slice(0,100);
+    count.textContent=`Найдено: ${rows.length} · поиск по загруженной истории`;
+    res.replaceChildren(...rows.map(msgCard));
+  };
+  [q,author,kind,from,to].forEach(el=>{el.addEventListener("input",run);el.addEventListener("change",run);});
+  modal(h("h1", { textContent: "🔍 Умный поиск", style: "font-size:22px" }), q, h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},author,kind,from,to), count, res); q.focus(); run();
 };
 
 /* ---------- CALLS (WebRTC) ---------- */
