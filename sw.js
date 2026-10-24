@@ -1,71 +1,107 @@
-// Service worker: сначала сеть для страницы (чтобы обновления приходили сразу),
-// кеш для иконок и манифеста. Запросы к Firebase и другим сайтам не перехватываются.
-const VERSION = "v12";
+// Service worker for the Discord-style chat app.
+// Pages always try the network first; only known static assets use the cache.
+const VERSION = "v14";
 const CACHE = "app-" + VERSION;
-const STATIC = ["./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png"];
+const INDEX_URL = new URL("./index.html", self.registration.scope).href;
+const STATIC_URLS = [
+  "./manifest.webmanifest",
+  "./icon.svg",
+  "./icon-192.png",
+  "./icon-512.png"
+].map(path => new URL(path, self.registration.scope).href);
 
-self.addEventListener("install", e => {
-  self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => Promise.all(STATIC.map(u => c.add(u).catch(() => {})))));
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE)
+      .then(cache => Promise.all(STATIC_URLS.map(url => cache.add(url).catch(() => {}))))
+      .then(() => self.skipWaiting())
+  );
 });
 
-self.addEventListener("activate", e => {
-  e.waitUntil(
+self.addEventListener("activate", event => {
+  event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(key => key.startsWith("app-") && key !== CACHE).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener("fetch", e => {
-  const req = e.request;
-  if (req.method !== "GET") return;
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // Firebase, gstatic и т.д. идут напрямую
+self.addEventListener("fetch", event => {
+  const request = event.request;
+  if (request.method !== "GET") return;
 
-  // Страница: сначала сеть, при отсутствии связи — копия из кеша
-  if (req.mode === "navigate" || url.pathname.endsWith("/") || url.pathname.endsWith("index.html")) {
-    e.respondWith(
-      fetch(req, { cache: "no-cache" }) // проверка у сервера: свежая версия сразу, без ожидания 10 минут HTTP-кеша
-        .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put("./index.html", copy)).catch(() => {}); return res; })
-        .catch(() => caches.match("./index.html").then(r => r || caches.match(req)))
-    );
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return; // Firebase and other origins are untouched.
+
+  const isPage = request.mode === "navigate" ||
+    url.pathname.endsWith("/") ||
+    url.pathname.endsWith("/index.html");
+
+  if (isPage) {
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(request, { cache: "no-cache" });
+        if (response.ok) {
+          const cache = await caches.open(CACHE);
+          await cache.put(INDEX_URL, response.clone()).catch(() => {});
+        }
+        return response;
+      } catch {
+        const cache = await caches.open(CACHE);
+        return (await cache.match(INDEX_URL)) || (await caches.match(request));
+      }
+    })());
     return;
   }
 
-  // Иконки и манифест: из кеша, с фоновым обновлением
-  e.respondWith(
-    caches.match(req).then(hit => {
-      const net = fetch(req, { cache: "no-cache" }).then(res => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); } return res; }).catch(() => hit);
-      return hit || net;
-    })
-  );
+  // Cache only the app's known static assets. Other same-origin requests
+  // (including future JS/CSS/API endpoints) go directly to the network.
+  if (!STATIC_URLS.includes(url.href)) return;
+
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(request);
+    const network = fetch(request, { cache: "no-cache" })
+      .then(async response => {
+        if (response.ok) await cache.put(request, response.clone()).catch(() => {});
+        return response;
+      })
+      .catch(() => cached);
+    return cached || network;
+  })());
 });
 
-// Показываем уведомление через Service Worker, чтобы оно не зависело от видимости вкладки.
 self.addEventListener("notificationclick", event => {
   event.notification.close();
-  const target = event.notification.data?.url || self.registration.scope;
-  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-    for (const client of list) {
-      if ("focus" in client) { client.navigate?.(target); return client.focus(); }
+  const target = new URL(event.notification.data?.url || self.registration.scope, self.registration.scope).href;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of windows) {
+      if ("focus" in client) {
+        if ("navigate" in client) await client.navigate(target).catch(() => {});
+        return client.focus();
+      }
     }
-    return self.clients.openWindow ? self.clients.openWindow(target) : undefined;
-  }));
+    if (self.clients.openWindow) return self.clients.openWindow(target);
+  })());
 });
 
-// Firebase Cloud Messaging/любой Web Push sender может передавать JSON payload.
-// Для доставки при полностью закрытом приложении всё равно нужен настроенный push sender.
 self.addEventListener("push", event => {
   let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data?.text?.() || "Новое сообщение" }; }
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data?.text?.() || "Новое сообщение" };
+  }
+
   const notification = data.notification || data;
   const title = notification.title || data.title || "Новое сообщение";
+  const targetUrl = data.data?.url || data.url || self.registration.scope;
   const options = {
     body: notification.body || data.body || "У вас новое сообщение",
     icon: notification.icon || "./icon-192.png",
     badge: "./icon-192.png",
-    data: { url: data.data?.url || data.url || self.registration.scope },
+    data: { url: targetUrl },
     tag: data.data?.tag || data.tag || "discord-message"
   };
   event.waitUntil(self.registration.showNotification(title, options));
