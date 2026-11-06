@@ -337,6 +337,10 @@ html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{an
 .spoiler *{visibility:hidden}.spoiler.open{background:#ffffff14;color:inherit;cursor:text}.spoiler.open *{visibility:visible}
 .t blockquote{border-left:4px solid var(--mut);padding-left:10px;margin:2px 0;color:var(--txt)}
 #dlg{z-index:70}
+.yt{position:relative;width:min(400px,100%);aspect-ratio:16/9;margin-top:6px;border-radius:8px;overflow:hidden;background:#000;cursor:pointer}
+.yt img,.yt iframe{width:100%;height:100%;object-fit:cover;border:0;display:block}
+.ytplay{position:absolute;inset:0;margin:auto;width:64px;height:44px;border-radius:12px;background:#ff0000e0;color:#fff;display:grid;place-items:center;font-size:20px;box-shadow:0 4px 14px #0007}
+.yt:hover .ytplay{background:#ff0000}.yt.on{cursor:default}
 #cname .topic{color:var(--mut);font-weight:400;font-size:13px;margin-left:10px;padding-left:10px;border-left:1px solid var(--hover)}
 #jumpNew{position:absolute;right:24px;bottom:96px;z-index:5;display:none;border-radius:20px;padding:8px 14px;box-shadow:0 4px 14px #0006;font-size:13px}
 </style>
@@ -391,7 +395,6 @@ html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{an
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, arrayUnion, arrayRemove, setDoc, getDocs, deleteField, FieldPath, documentId, Bytes, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyBSyynf_g3goTl2bS05slOiylDnGru0m54",
@@ -418,6 +421,19 @@ const colorOf = s => colors[[...String(s)].reduce((a, c) => a + c.charCodeAt(0),
 const avatar = (name, uid) => { const u = uid ? getUser(uid) : {}; const a = h("div", { className: "av", textContent: (u.name || name || "?")[0].toUpperCase() }); if (u.avatar) { a.style.backgroundImage = `url("${u.avatar}")`; a.style.backgroundSize = "cover"; a.style.backgroundPosition = "center"; a.classList.add("img"); } else a.style.background = colorOf(name); if (uid && user && uid === user.uid) { const frame = LS.get("fa1roxx:cosmetic:frame:" + uid); if (frame === "neon") a.style.outline = "3px solid #a855f7"; else if (frame === "gold") a.style.outline = "3px solid #f0b232"; else if (frame === "ice") a.style.outline = "3px solid #20c4d8"; if (frame) a.style.outlineOffset = "2px"; } return a; };
 const toast = t => { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = "none", 2200); };
 
+// Notification sounds are synthesized with WebAudio, so no audio files or Storage are needed.
+const SOUNDS = { off: { label: "🔇 Без звука", notes: [] }, ping: { label: "🔔 Пинг", notes: [[880, 0, .12]] }, pop: { label: "🫧 Поп", notes: [[520, 0, .06], [780, .06, .08]] }, chime: { label: "🎐 Колокольчик", notes: [[660, 0, .15], [990, .12, .22]] }, retro: { label: "👾 Ретро", notes: [[440, 0, .07], [660, .07, .07], [880, .14, .1]] } };
+let audioCtx = null, lastSoundAt = 0;
+function playNotifSound(preview = false) {
+  const s = SOUNDS[LS.get("notifSound") || "off"];
+  if (!s?.notes.length || (!preview && Date.now() - lastSoundAt < 1500)) return;
+  lastSoundAt = Date.now();
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime;
+    s.notes.forEach(([f, at, dur]) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = "sine"; o.frequency.value = f; g.gain.setValueAtTime(.0001, t0 + at); g.gain.exponentialRampToValueAtTime(.18, t0 + at + .01); g.gain.exponentialRampToValueAtTime(.0001, t0 + at + dur); o.connect(g).connect(audioCtx.destination); o.start(t0 + at); o.stop(t0 + at + dur + .02); });
+  } catch {}
+}
 let user = null, servers = [], cur = null, curCh = null, chans = [], home = false, friends = [], mpath = null, allChans = [], curList = [], currentServerPerms = [];
 let unsub = { sv: null, ch: null, msg: null, perm: null };
 
@@ -468,6 +484,7 @@ const myName = () => user.displayName || user.email.split("@")[0];
 /* ---------- SERVERS ---------- */
 function boot() {
   if (!user) return;
+  enforceGlobalBan();
   delete ucache[user.uid]; paintMe(); listenIncoming();
   setDoc(doc(db, "users", user.uid), { name: myName(), nameLower: myName().toLowerCase() }, { merge: true }).catch(() => {});
   unsub.fr && unsub.fr();
@@ -614,12 +631,20 @@ function paintTopic(ch) {
   const el = $("cname"); el.querySelector(".topic")?.remove(); el.title = ch?.topic || "";
   if (ch?.topic) el.append(h("span", { className: "topic", textContent: ch.topic }));
 }
-function rich(text, names) {
+// YouTube links get a lightweight preview: thumbnail first, the player loads only after a click.
+function youtubeId(text) { const m = String(text).match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:[^\s]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/i); return m ? m[1] : null; }
+function youtubeCard(id) {
+  const card = h("div", { className: "yt", title: "Воспроизвести видео" });
+  card.append(h("img", { src: "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg", alt: "Превью YouTube", loading: "lazy" }), h("span", { className: "ytplay", textContent: "▶" }));
+  card.onclick = e => { e.stopPropagation(); card.replaceChildren(h("iframe", { src: "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1", allow: "autoplay; encrypted-media; picture-in-picture; fullscreen", allowFullscreen: true, title: "YouTube" })); card.classList.add("on"); };
+  return card;
+}
+function rich(text, names, chanMap = {}) {
   let mine = false;
   const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const nl = Object.keys(names).filter(Boolean).sort((a, b) => b.length - a.length).map(esc);
   const mre = "@(?:everyone" + (nl.length ? "|" + nl.join("|") : "") + ")(?![\\p{L}\\p{N}_])";
-  const re = new RegExp("(`[^`\\n]+`)|(\\*\\*[^\\n]+?\\*\\*)|(~~[^\\n]+?~~)|(\\*[^*\\n]+?\\*)|(https?://[^\\s<]+)|(" + mre + ")|(\\|\\|[^\\n]+?\\|\\|)|(__[^\\n]+?__)", "giu");
+  const re = new RegExp("(`[^`\\n]+`)|(\\*\\*[^\\n]+?\\*\\*)|(~~[^\\n]+?~~)|(\\*[^*\\n]+?\\*)|(https?://[^\\s<]+)|(" + mre + ")|(\\|\\|[^\\n]+?\\|\\|)|(__[^\\n]+?__)|((?<![\\p{L}\\p{N}_&/])#[\\p{L}\\p{N}_-]+)", "giu");
   const inline = (str, parent) => {
     let last = 0, m; re.lastIndex = 0;
     const found = []; while ((m = re.exec(str))) found.push({ i: m.index, t: m[0], g: m.slice(1).findIndex(Boolean) });
@@ -634,6 +659,7 @@ function rich(text, names) {
       else if (f.g === 4) { const mm = t.match(/^(.*?)([.,!?;:)]*)$/); parent.append(h("a", { href: mm[1], target: "_blank", rel: "noopener noreferrer", textContent: mm[1] })); if (mm[2]) parent.append(mm[2]); }
       else if (f.g === 6) { const e = h("span", { className: "spoiler", title: "Спойлер — нажмите, чтобы показать" }); inline(t.slice(2, -2), e); e.onclick = ev => { if (!e.classList.contains("open")) { ev.stopPropagation(); e.classList.add("open"); } }; parent.append(e); }
       else if (f.g === 7) { const e = h("u"); inline(t.slice(2, -2), e); parent.append(e); }
+      else if (f.g === 8) { const cid = chanMap[t.slice(1).toLowerCase()]; if (!cid) parent.append(t); else { const sp = h("span", { className: "mn", textContent: t, title: "Открыть канал" }); sp.onclick = e => { e.stopPropagation(); if (chans.some(c => c.id === cid)) selectChannel(cid); else toast("Нет доступа к каналу"); }; parent.append(sp); } }
       else { const k = t.slice(1).toLowerCase(), uid = names[k], every = k === "everyone"; if (every || uid === user.uid) mine = true; const sp = h("span", { className: "mn", textContent: t }); if (uid) sp.onclick = e => { e.stopPropagation(); showProfile(uid, t.slice(1)); }; parent.append(sp); }
       last = f.i + t.length;
     });
@@ -725,6 +751,7 @@ function openChat(path, title, ph, admin, emptyText) {
     const displayList = list.filter(m => !m.threadRoot);
     if (!displayList.length) box.append(h("div", { className: "empty", textContent: emptyText }));
     const mnames = {}; { const src = path[0] === "servers" ? (cur?.names || {}) : (friends.find(x => x.id === path[1])?.names || {}); Object.entries(src).forEach(([u, n]) => { const k = String(nameOf(u, n)).toLowerCase(); if (k) mnames[k] = u; }); }
+    const chanNames = {}; if (path[0] === "servers") chans.filter(c => c.type !== "voice").forEach(c => { chanNames[String(c.name).toLowerCase()] = c.id; });
     let prev = null, prevDay = "";
     displayList.forEach(m => {
       let mine = false;
@@ -738,7 +765,8 @@ function openChat(path, title, ph, admin, emptyText) {
       if (m.forwarded) body.append(h("div", { className: "ts", textContent: "↪ Переслано от " + (m.forwardedFrom || "пользователя") }));
       if (m.pin) body.append(h("div", { className: "ts", textContent: "📌 закреплено" }));
       if (m.re) { const q = h("div", { className: "qt", textContent: "↩ " + m.re.name + ": " + m.re.text }); q.onclick = e => { e.stopPropagation(); const t = [...$("msgs").children].find(x => x.dataset.id === m.re.id); if (!t) return toast("Исходное сообщение далеко или удалено"); t.scrollIntoView({ block: "center", behavior: "smooth" }); t.classList.add("flash"); setTimeout(() => t.classList.remove("flash"), 1500); }; body.append(q); }
-      if (m.text) { const rt = rich(m.text, mnames); if (rt.mine && m.uid !== user.uid) mine = true; body.append(h("div", { className: "t" }, rt.frag, m.edited ? h("span", { className: "ts", textContent: " (изменено)" }) : "")); }
+      if (m.text) { const rt = rich(m.text, mnames, srv ? chanNames : {}); if (rt.mine && m.uid !== user.uid) mine = true; body.append(h("div", { className: "t" }, rt.frag, m.edited ? h("span", { className: "ts", textContent: " (изменено)" }) : "")); }
+      if (m.text && LS.get("embeds") !== "0") { const yt = youtubeId(m.text); if (yt) body.append(youtubeCard(yt)); }
       if (m.sticker) body.append(h("div", { className: "sticker", role: "img", "aria-label": "Стикер", textContent: m.sticker }));
       if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото", loading: "lazy", decoding: "async" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
       if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
@@ -777,7 +805,9 @@ function openChat(path, title, ph, admin, emptyText) {
     if (mpath !== path) return;
     const old = new Set(list.map(m => m.id)), had = list.length > 0;
     list = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); curList = list;
-    if (had) list.filter(m => !old.has(m.id) && m.uid !== user.uid && m.createdAt).forEach(m => rememberNotification(m, path, title));
+    const fresh = had ? list.filter(m => !old.has(m.id) && m.uid !== user.uid && m.createdAt) : [];
+    fresh.forEach(m => rememberNotification(m, path, title));
+    if (fresh.some(m => !m.sys) && (LS.get("notificationMode") || "all") !== "off" && ucache[user.uid]?.status !== "dnd") playNotifSound();
     const notificationMode = LS.get("notificationMode") || "all";
     if (notificationMode !== "off" && had && document.hidden && "Notification" in window && Notification.permission === "granted" && ucache[user.uid]?.status !== "dnd") list.filter(m => {
       if (old.has(m.id) || m.uid === user.uid || !m.createdAt) return false;
@@ -790,17 +820,30 @@ function openChat(path, title, ph, admin, emptyText) {
   subscribe();
 }
 const sendTimes = [];
-// XP is browser-local because the currently available Firestore Rules do not grant users write access to users/{uid}/stats/progress.
-// This avoids requiring a Rules change, Blaze, or a server function; it does not sync across devices.
-function awardMessageXp() {
-  if (!user) return;
-  const key = "fa1roxx:xp-cooldown:" + user.uid, xpKey = "fa1roxx:xp:" + user.uid, now = Date.now();
-  const last = Number(LS.get(key) || 0);
-  if (now - last < 60000) return;
-  LS.set(key, String(now));
-  const xp = Math.max(0, Number(LS.get(xpKey) || 0)) + 5;
-  LS.set(xpKey, String(xp));
-  ucache[user.uid] = { ...(ucache[user.uid] || {}), _localXp: xp };
+// Spark plan: no Cloud Functions, so the browser writes leaderboard/{uid} itself.
+// Firestore Rules (see SPARK_SETUP.md) only allow +10 XP per write and one write per 30 s, so XP cannot be inflated freely.
+const XP_STEP = 10, XP_COOLDOWN = 31000;
+const levelOf = xp => Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1;
+let xpBusy = false;
+async function awardMessageXp() {
+  if (!user || xpBusy) return;
+  const cdKey = "fa1roxx:xp-cooldown:" + user.uid;
+  if (Date.now() - Number(LS.get(cdKey) || 0) < XP_COOLDOWN) return;
+  xpBusy = true;
+  try {
+    const ref = doc(db, "leaderboard", user.uid), snap = await getDoc(ref), old = snap.exists() ? snap.data() : null;
+    const last = old?.lastAwardAt?.toMillis ? old.lastAwardAt.toMillis() : 0;
+    if (Date.now() - last < XP_COOLDOWN) return;
+    const xp = Number(old?.xp || 0) + XP_STEP;
+    await setDoc(ref, { uid: user.uid, name: myName().slice(0, 64), xp, level: levelOf(xp), messages: Number(old?.messages || 0) + 1, lastAwardAt: serverTimestamp() });
+    LS.set(cdKey, String(Date.now()));
+    myXp = xp;
+  } catch (e) { if (e?.code === "permission-denied") console.warn("Fa1roxx XP: add leaderboard rules from SPARK_SETUP.md"); }
+  finally { xpBusy = false; }
+}
+let myXp = null;
+async function loadXp(uid) {
+  try { const d = await getDoc(doc(db, "leaderboard", uid)); return d.exists() ? Number(d.data().xp || 0) : 0; } catch { return 0; }
 }
 async function send(data) {
   if (!mpath) return false;
@@ -884,7 +927,7 @@ $("inp").addEventListener("keydown", e => {
 const randomPick = a => a[Math.floor(Math.random() * a.length)];
 const EIGHT_BALL = ["Бесспорно", "Предрешено", "Никаких сомнений", "Определённо да", "Можешь быть уверен в этом", "Мне кажется — да", "Вероятнее всего", "Хорошие перспективы", "Знаки говорят — да", "Да", "Пока не ясно, попробуй снова", "Спроси позже", "Лучше не рассказывать", "Сейчас нельзя предсказать", "Сконцентрируйся и спроси опять", "Даже не думай", "Мой ответ — нет", "По моим данным — нет", "Перспективы не очень хорошие", "Весьма сомнительно"];
 const HELP_TEXT = "Команды: /roll [N] · /coin · /8ball вопрос · /choose a | b | c · /shrug · /tableflip · /unflip · /lenny · /spoiler текст · /me текст · /poll Вопрос | вариант 1 | вариант 2 · /clear · /help\n" +
-  "Разметка: **жирный** · *курсив* · __подчёркнутый__ · ~~зачёркнутый~~ · ||спойлер|| · `код` · > цитата\n" +
+  "Разметка: **жирный** · *курсив* · __подчёркнутый__ · ~~зачёркнутый~~ · ||спойлер|| · `код` · > цитата · #канал — ссылка на канал\n" +
   "Клавиши: Ctrl+K — команды · Ctrl+/ — поле ввода · ↑ — изменить последнее · Esc — отменить ответ · Shift+🗑 — удалить без вопроса";
 function showHelp() {
   const rows = HELP_TEXT.split("\n").map(line => { const [head, ...rest] = line.split(": "); return h("div", { style: "margin-top:12px" }, h("div", { className: "profile-section-title", textContent: head.toUpperCase() }), h("div", { textContent: rest.join(": ").split(" · ").join("\n"), style: "white-space:pre-line;line-height:1.7;overflow-wrap:anywhere" })); });
@@ -989,7 +1032,7 @@ $("gif").onclick = () => {
   const url = h("input", { className: "in", placeholder: "Вставьте прямую HTTPS-ссылку на GIF" });
   const sendGif = mkBtn("Отправить GIF", async () => { const u = url.value.trim(); if (!/^https:\/\//i.test(u)) return toast("Нужна HTTPS-ссылка на GIF"); try { const ok = await send({ text: "", img: u, gif: true }); if (ok) closeM(); } catch { toast("Не удалось отправить GIF"); } }, "btn full");
   const stickers = h("div", { style:"display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:10px 0" });
-  ["😂","😭","💀","🔥","🗿","🐸","😎","🥹","🤡","👀","❤️‍🔥","🎉","🫡","💯","✨","🫠"].forEach(st=>{ const b=mkBtn(st,async()=>{ const ok=await send({text:"",sticker:st}); if(ok) closeM(); },"btn g"); b.style.cssText+=";font-size:27px;min-height:54px"; stickers.append(b); });
+  ["😂","😭","💀","🔥","🗿","🐸","😎","🥹","🤡","👀","❤️‍🔥","🎉","🫡","💯","✨","🫠","🤯","😈","🥶","🤑","🙈","💅","🐐","🚀"].forEach(st=>{ const b=mkBtn(st,async()=>{ const ok=await send({text:"",sticker:st}); if(ok) closeM(); },"btn g"); b.style.cssText+=";font-size:27px;min-height:54px"; stickers.append(b); });
   modal(h("h1", { textContent: "GIF и стикеры", style: "text-align:center;font-size:22px" }), h("p", { textContent: "GIF-поиск открывает GIPHY отдельно; отправка внешнего GIF требует прямую HTTPS-ссылку. Ниже — встроенные текстовые стикеры, которые отправляются как отдельные сообщения и не требуют платного хранилища.", style: "margin:8px 0" }), stickers, h("label", { textContent: "НАЙТИ GIF" }), q, search, h("label", { textContent: "ПРЯМАЯ HTTPS-ССЫЛКА НА GIF" }), url, sendGif);
 };
 
@@ -1035,12 +1078,75 @@ async function loadMyServerPermissions(sid, serverData) {
   }
 }
 const OWNER_UID = "TyCwwKPAAQcjPI6pxCxHU693Ylj1";
-const adminFunctions = getFunctions(app);
-const callAdmin = (name, data) => httpsCallable(adminFunctions, name)(data).then(r => r.data);
+// Spark plan: Cloud Functions are unavailable, so the owner panel writes to Firestore directly.
+// Security comes from Firestore Rules that only allow these writes for OWNER_UID (see SPARK_SETUP.md).
+const adminErr = (code, message) => Object.assign(new Error(message), { code });
+const audit = (action, extra) => addDoc(collection(db, "adminAudit"), { actor: OWNER_UID, action, ...extra, at: serverTimestamp() }).catch(() => {});
+const guardTarget = uid => { if (typeof uid !== "string" || !uid.trim() || uid.includes("/") || uid.length > 128) throw adminErr("invalid-argument", "Некорректный UID"); if (uid === OWNER_UID) throw adminErr("failed-precondition", "Нельзя применять модерацию к владельцу приложения."); return uid.trim(); };
+const adminApi = {
+  async ownerListServers() {
+    const snap = await getDocs(query(collection(db, "servers"), limit(500)));
+    return { servers: snap.docs.map(d => ({ id: d.id, name: d.data().name || "Сервер", members: Array.isArray(d.data().members) ? d.data().members.length : 0 })) };
+  },
+  async ownerLookupUser({ uid }) {
+    if (!uid || uid.includes("/")) throw adminErr("invalid-argument", "Некорректный UID");
+    const [p, ach, ban, srv] = await Promise.all([getDoc(doc(db, "users", uid)), getDocs(collection(db, "users", uid, "achievements")), getDoc(doc(db, "globalBans", uid)), getDocs(query(collection(db, "servers"), where("members", "array-contains", uid)))]);
+    if (!p.exists() && srv.empty) throw adminErr("not-found", "Пользователь не найден");
+    const profile = p.exists() ? p.data() : {};
+    return { uid, name: profile.name || "", email: "", globalBanned: ban.exists(),
+      achievements: ach.docs.map(d => ({ id: d.id, name: d.data().name || "", icon: d.data().icon || "🏆", description: d.data().description || "" })).slice(0, 50),
+      servers: srv.docs.map(d => ({ id: d.id, name: d.data().name || "Сервер" })) };
+  },
+  async ownerSetAchievement({ uid, name, icon, description }) {
+    uid = guardTarget(uid); if (!name?.trim()) throw adminErr("invalid-argument", "Введите название");
+    const ref = await addDoc(collection(db, "users", uid, "achievements"), { name: name.trim().slice(0, 60), icon: (icon || "🏆").slice(0, 12), description: (description || "").slice(0, 160), grantedBy: OWNER_UID, createdAt: serverTimestamp() });
+    audit("achievement_grant", { targetUid: uid, achievementId: ref.id, name }); return { ok: true, id: ref.id };
+  },
+  async ownerRemoveAchievement({ uid, achievementId }) {
+    uid = guardTarget(uid); await deleteDoc(doc(db, "users", uid, "achievements", achievementId));
+    audit("achievement_revoke", { targetUid: uid, achievementId }); return { ok: true };
+  },
+  async ownerBanServer({ uid, serverId }) {
+    uid = guardTarget(uid);
+    const ref = doc(db, "servers", serverId), snap = await getDoc(ref);
+    if (!snap.exists()) throw adminErr("not-found", "Сервер не найден");
+    if (snap.data().owner === uid) throw adminErr("failed-precondition", "Нельзя забанить владельца сервера.");
+    const p = await getDoc(doc(db, "users", uid)).catch(() => null), label = (p?.exists() && p.data().name) || snap.data().names?.[uid] || uid;
+    const batch = writeBatch(db);
+    batch.update(ref, { members: arrayRemove(uid), ["names." + uid]: deleteField(), ["mr." + uid]: deleteField(), ["bn." + uid]: label });
+    batch.delete(doc(db, "servers", serverId, "memberPermissions", uid));
+    await batch.commit(); audit("server_ban", { targetUid: uid, serverId }); return { ok: true };
+  },
+  async ownerUnbanServer({ uid, serverId }) {
+    uid = guardTarget(uid); await updateDoc(doc(db, "servers", serverId), { ["bn." + uid]: deleteField() });
+    audit("server_unban", { targetUid: uid, serverId }); return { ok: true };
+  },
+  async ownerGlobalBan({ uid, reason }) {
+    uid = guardTarget(uid); await setDoc(doc(db, "globalBans", uid), { uid, reason: (reason || "").slice(0, 240), actor: OWNER_UID, createdAt: serverTimestamp() });
+    audit("global_ban", { targetUid: uid, reason }); return { ok: true };
+  },
+  async ownerGlobalUnban({ uid }) {
+    uid = guardTarget(uid); await deleteDoc(doc(db, "globalBans", uid));
+    audit("global_unban", { targetUid: uid }); return { ok: true };
+  }
+};
+const callAdmin = (name, data) => adminApi[name](data);
+// Globally banned users are signed out on login. Full enforcement also needs the optional rule in SPARK_SETUP.md.
+async function enforceGlobalBan() {
+  if (!user || user.uid === OWNER_UID) return false;
+  try {
+    const b = await getDoc(doc(db, "globalBans", user.uid));
+    if (!b.exists()) return false;
+    const reason = b.data().reason;
+    await signOut(auth);
+    $("aerr").textContent = "Аккаунт заблокирован администрацией" + (reason ? ": " + reason : "");
+    return true;
+  } catch { return false; }
+}
 async function openOwnerAdminPanel() {
   if (!user || user.uid !== OWNER_UID) return toast("Нет доступа");
   const title = h("h1", { textContent: "🛡 Owner Admin Panel", style: "font-size:22px" });
-  const note = h("p", { className: "ts", textContent: "Действия проверяются сервером. Блокировки и ачивки применяются после развёртывания Firebase Functions и обновления Rules." });
+  const note = h("p", { className: "ts", textContent: "Работает на плане Spark без Cloud Functions. Права защищены правилами Firestore из SPARK_SETUP.md. Глобальный бан выкидывает пользователя из приложения при входе." });
   const target = h("input", { className: "in", placeholder: "Firebase UID пользователя", maxLength: 128, style: "width:100%;margin:8px 0" });
   const lookup = mkBtn("Найти пользователя", null, "btn");
   const result = h("div", { style: "margin-top:12px" });
@@ -1060,7 +1166,7 @@ async function openOwnerAdminPanel() {
     lookup.disabled = true; status.textContent = "Ищу пользователя…"; result.replaceChildren(); found = null;
     try {
       found = await callAdmin("ownerLookupUser", { uid });
-      result.append(h("div", { className: "profile-status" }, h("div", {}, h("strong", { textContent: found.name || found.email || uid }), h("div", { className: "ts", textContent: "UID: " + uid }), h("div", { className: "ts", textContent: found.email || "Email не указан" }), h("div", { className: "ts", textContent: found.globalBanned ? "⛔ Глобально заблокирован" : "🟢 Глобального бана нет" }))));
+      result.append(h("div", { className: "profile-status" }, h("div", {}, h("strong", { textContent: found.name || found.email || uid }), h("div", { className: "ts", textContent: "UID: " + uid }), h("div", { className: "ts", textContent: "Серверы: " + ((found.servers || []).map(x => x.name).join(", ") || "нет") }), h("div", { className: "ts", textContent: found.globalBanned ? "⛔ Глобально заблокирован" : "🟢 Глобального бана нет" }))));
       const achievements = found.achievements || [];
       result.append(h("div", { className: "profile-section-title", textContent: "ДОСТИЖЕНИЯ" }));
       result.append(h("p", { className: "ts", textContent: achievements.length ? achievements.map(a => `${a.icon || "🏆"} ${a.name}`).join(" · ") : "Пользовательских ачивок пока нет" }));
@@ -1095,9 +1201,9 @@ async function openOwnerAdminPanel() {
 function openOwnerAdminPanelWithUid(uid) { openOwnerAdminPanel().then(() => { const field = document.querySelector("#pc input[placeholder='Firebase UID пользователя']"); if (field) { field.value = uid; const btn = [...document.querySelectorAll("#pc button")].find(b => b.textContent === "Найти пользователя"); btn?.click(); } }); }
 function adminError(e) {
   const code = e?.code || "";
-  if (code.includes("permission-denied") || code.includes("unauthenticated")) return "Нет прав. Проверь вход и деплой Firebase Functions.";
+  if (code.includes("permission-denied") || code.includes("unauthenticated")) return "Нет прав. Добавь правила владельца из SPARK_SETUP.md в Firestore Rules.";
   if (code.includes("not-found")) return "Пользователь или сервер не найден.";
-  if (code.includes("failed-precondition")) return e.message || "Сначала настрой Firebase Functions.";
+  if (code.includes("failed-precondition") || code.includes("invalid-argument")) return e.message || "Некорректные данные.";
   return e?.message || code || "Неизвестная ошибка";
 }
 
@@ -1200,15 +1306,16 @@ function openCommandPalette() {
   search.addEventListener("input", draw); draw(); modal(h("h1",{textContent:"⌘ Быстрые команды",style:"font-size:22px"}),search,list); search.focus();
 }
 
-function openCosmeticShop() {
+async function openCosmeticShop() {
   if (!user) return toast("Сначала войдите в аккаунт");
-  const xpKey="fa1roxx:xp:"+user.uid, ownedKey="fa1roxx:cosmetic:owned:"+user.uid, frameKey="fa1roxx:cosmetic:frame:"+user.uid;
+  const spentKey="fa1roxx:cosmetic:spent:"+user.uid, ownedKey="fa1roxx:cosmetic:owned:"+user.uid, frameKey="fa1roxx:cosmetic:frame:"+user.uid;
   const items=[{id:"neon",name:"Неоновая рамка",emoji:"💜",cost:25},{id:"gold",name:"Золотая рамка",emoji:"👑",cost:60},{id:"ice",name:"Ледяная рамка",emoji:"🧊",cost:45}];
-  const balance=()=>Math.max(0,Number(LS.get(xpKey)||0)); const owned=()=>{try{return JSON.parse(LS.get(ownedKey)||"[]")}catch{return[]}};
+  const totalXp=myXp ?? (myXp = await loadXp(user.uid)); const balance=()=>Math.max(0,totalXp-Number(LS.get(spentKey)||0)); const owned=()=>{try{return JSON.parse(LS.get(ownedKey)||"[]")}catch{return[]}};
   const panel=h("div",{style:"display:grid;gap:10px;margin-top:12px"});
-  const draw=()=>{panel.replaceChildren(h("p",{textContent:"⭐ Баланс: "+balance()+" XP",style:"font-weight:700"}),h("p",{className:"ts",textContent:"Покупки и рамка хранятся только в этом браузере. XP не синхронизируется."})); items.forEach(it=>{const has=owned().includes(it.id), equipped=LS.get(frameKey)===it.id;const row=h("div",{style:"display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border-radius:8px"});row.append(h("span",{textContent:it.emoji,style:"font-size:26px"}),h("div",{style:"flex:1;min-width:0"},h("div",{textContent:it.name,style:"font-weight:700"}),h("div",{textContent:has?"Разблокировано":"Цена: "+it.cost+" XP",style:"font-size:12px;color:var(--mut)"})));const b=mkBtn(equipped?"Надето":has?"Надеть":"Купить",()=>{if(has){LS.set(frameKey,equipped?"":it.id);draw();paintMe();toast(equipped?"Рамка снята":"Рамка применена");return;}if(balance()<it.cost)return toast("Не хватает XP");LS.set(xpKey,String(balance()-it.cost));LS.set(ownedKey,JSON.stringify([...owned(),it.id]));LS.set(frameKey,it.id);draw();paintMe();toast("Косметика куплена и надета");});b.disabled=equipped;row.append(b);panel.append(row);});}; draw(); modal(h("h1",{textContent:"🛍 Магазин оформления",style:"font-size:22px"}),panel);
+  const draw=()=>{panel.replaceChildren(h("p",{textContent:"⭐ Баланс: "+balance()+" XP",style:"font-weight:700"}),h("p",{className:"ts",textContent:"Баланс = твой XP из таблицы лидеров минус потраченное. Покупки и рамка хранятся в этом браузере."})); items.forEach(it=>{const has=owned().includes(it.id), equipped=LS.get(frameKey)===it.id;const row=h("div",{style:"display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border-radius:8px"});row.append(h("span",{textContent:it.emoji,style:"font-size:26px"}),h("div",{style:"flex:1;min-width:0"},h("div",{textContent:it.name,style:"font-weight:700"}),h("div",{textContent:has?"Разблокировано":"Цена: "+it.cost+" XP",style:"font-size:12px;color:var(--mut)"})));const b=mkBtn(equipped?"Надето":has?"Надеть":"Купить",()=>{if(has){LS.set(frameKey,equipped?"":it.id);draw();paintMe();toast(equipped?"Рамка снята":"Рамка применена");return;}if(balance()<it.cost)return toast("Не хватает XP");LS.set(spentKey,String(Number(LS.get(spentKey)||0)+it.cost));LS.set(ownedKey,JSON.stringify([...owned(),it.id]));LS.set(frameKey,it.id);draw();paintMe();toast("Косметика куплена и надета");});b.disabled=equipped;row.append(b);panel.append(row);});}; draw(); modal(h("h1",{textContent:"🛍 Магазин оформления",style:"font-size:22px"}),panel);
 }
 
+const ACTIVITY = { playing: ["🎮", "СЕЙЧАС ИГРАЕТ", "Геймер"], listening: ["🎧", "СЕЙЧАС СЛУШАЕТ", "Меломан"], watching: ["📺", "СЕЙЧАС СМОТРИТ", "Зритель"], streaming: ["🔴", "СЕЙЧАС СТРИМИТ", "Стример"], coding: ["💻", "СЕЙЧАС ПРОГРАММИРУЕТ", "Кодер"] };
 async function showProfile(uid, fb) {
   let u = ucache[uid];
   if (!u || !u.name) {
@@ -1236,27 +1343,23 @@ async function showProfile(uid, fb) {
   shell.append(top);
 
   let progress = {};
-  try { const ps = await getDoc(doc(db, "users", uid, "stats", "progress")); if (ps.exists()) progress = ps.data(); } catch {}
-  if (uid === user.uid) {
-    const localXp = Math.max(0, Number(LS.get("fa1roxx:xp:" + uid) || 0));
-    progress = { ...progress, xp: localXp, level: Math.max(1, Math.floor(Math.sqrt(localXp / 100)) + 1), localOnly: true };
-  }
-  const xp = Number(progress.xp || 0), level = Number(progress.level || 1), nextXp = level * level * 100;
+  try { const ps = await getDoc(doc(db, "leaderboard", uid)); if (ps.exists()) progress = ps.data(); } catch {}
+  const xp = Number(progress.xp || 0), level = levelOf(xp), nextXp = level * level * 100;
   const body = h("div", { className: "profile-body" });
   const xpCard = h("div", { className: "profile-status", style: "margin-bottom:12px" },
     h("span", { textContent: "⭐", style: "font-size:22px" }),
     h("div", {}, h("div", { textContent: "УРОВЕНЬ " + level, style: "font-size:10px;letter-spacing:.08em;color:#b5bac1;font-weight:800;margin-bottom:2px" }),
       h("div", { textContent: xp + " XP · " + Math.max(0, nextXp - xp) + " XP до следующего уровня", style: "font-weight:650;overflow-wrap:anywhere" })));
   body.append(xpCard);
-  if (uid === user.uid) body.append(h("p", { className:"ts", textContent:"XP начисляется за активность с ограничением частоты и хранится только в этом браузере; между устройствами не синхронизируется.", style:"margin-top:6px" }));
+  if (uid === user.uid) body.append(h("p", { className:"ts", textContent:"+10 XP за сообщение, не чаще раза в 30 секунд. XP общий для всех устройств и виден в таблице лидеров.", style:"margin-top:6px" }));
   if (u.bio) {
     body.append(h("div", { className: "profile-section-title", textContent: "О СЕБЕ" }));
     body.append(h("div", { className: "profile-bio", textContent: u.bio }));
   }
   if (u.gameStatus) {
     body.append(h("div", { className: "profile-status" },
-      h("span", { textContent: "🎮", style: "font-size:20px" }),
-      h("div", {}, h("div", { textContent: "СЕЙЧАС ИГРАЕТ", style: "font-size:10px;letter-spacing:.08em;color:#b5bac1;font-weight:800;margin-bottom:2px" }),
+      h("span", { textContent: (ACTIVITY[u.activityType] || ACTIVITY.playing)[0], style: "font-size:20px" }),
+      h("div", {}, h("div", { textContent: (ACTIVITY[u.activityType] || ACTIVITY.playing)[1], style: "font-size:10px;letter-spacing:.08em;color:#b5bac1;font-weight:800;margin-bottom:2px" }),
         h("div", { textContent: u.gameStatus, style: "font-weight:650;overflow-wrap:anywhere" }))
     ));
   }
@@ -1267,7 +1370,7 @@ async function showProfile(uid, fb) {
   }
 
   const badges = [];
-  if (xp >= 5) badges.push(["💬", "Первое сообщение · XP"]);
+  if (xp >= 10) badges.push(["💬", "Первое сообщение · XP"]);
   if (xp >= 100) badges.push(["⭐", "100 XP"]);
   if (xp >= 500) badges.push(["🔥", "500 XP"]);
   if (level >= 5) badges.push(["🏅", "Уровень 5+"]);
@@ -1277,7 +1380,7 @@ async function showProfile(uid, fb) {
   if (cur && cur.members?.includes(uid) && roleOf(uid)) badges.push(["🛡️", "Участник команды"]);
   if (u.avatar) badges.push(["🖼️", "Свой аватар"]);
   if (u.banner) badges.push(["🌌", "Свой баннер"]);
-  if (u.gameStatus) badges.push(["🎮", "Геймер"]);
+  if (u.gameStatus) { const act = ACTIVITY[u.activityType] || ACTIVITY.playing; badges.push([act[0], act[2]]); }
   if (u.bio) badges.push(["✨", "Заполнил профиль"]);
   customAchievements.forEach(a => badges.push([a.icon || "🏆", a.name || "Особое достижение"]));
   if (badges.length) {
@@ -1318,7 +1421,7 @@ async function square(file) {
 }
 function editProfile() {
   const u = ucache[user.uid] || {}; let av = u.avatar || null, banner = u.banner || "";
-  const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" }), statusText = h("input", { className: "in", value: u.statusText || "", maxLength: 60, placeholder: "Короткий статус" }), gameStatus = h("input", { className: "in", value: u.gameStatus || "", maxLength: 50, placeholder: "Например: 🎮 Gorilla Tag" });
+  const nm = h("input", { className: "in", value: myName(), maxLength: 24 }), bio = h("input", { className: "in", value: u.bio || "", maxLength: 120, placeholder: "О себе" }), statusText = h("input", { className: "in", value: u.statusText || "", maxLength: 60, placeholder: "Короткий статус" }), gameStatus = h("input", { className: "in", value: u.gameStatus || "", maxLength: 50, placeholder: "Например: Gorilla Tag, Spotify, YouTube…" });
   const prev = avatar(myName(), user.uid); Object.assign(prev.style, { width: "88px", height: "88px", fontSize: "34px", margin: "0 auto 10px" });
   const f = h("input", { type: "file", accept: "image/*", "data-avf": "1", style: "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0" });
   f.setAttribute("data-avf", "1"); document.body.append(f);
@@ -1330,6 +1433,9 @@ function editProfile() {
   const clr = mkBtn("Убрать аватарку", () => { av = null; prev.style.backgroundImage = ""; prev.style.background = colorOf(myName()); prev.classList.remove("img"); toast("Нажмите «Сохранить»"); });
   f.onchange = async () => { const file = f.files[0]; if (!file) return; try { av = await square(file); f.value = ""; prev.style.backgroundImage = `url(${av})`; prev.style.backgroundSize = "cover"; prev.style.backgroundPosition = "center"; prev.classList.add("img"); toast("Фото выбрано — нажмите «Сохранить»"); } catch { f.value = ""; toast("Не удалось обработать фото, выберите JPG или PNG"); } };
   const sel = (opts, val) => { const e = h("select", { className: "in" }); opts.forEach(([v, t]) => e.append(h("option", { value: v, textContent: t }))); e.value = val; return e; };
+  const actType = sel(Object.entries(ACTIVITY).map(([k, v]) => [k, v[0] + " " + v[1].replace("СЕЙЧАС ", "").toLowerCase()]), u.activityType || "playing");
+  const sound = sel(Object.entries(SOUNDS).map(([k, v]) => [k, v.label]), LS.get("notifSound") || "off");
+  sound.onchange = () => { LS.set("notifSound", sound.value); playNotifSound(true); };
   const st = sel([["online", "🟢 В сети"], ["dnd", "🔴 Не беспокоить"], ["invisible", "⚪ Невидимка"]], u.status || "online");
   const th = sel([["dark", "Discord Dark"], ["light", "Светлая"], ["neon", "Fa1roxx Neon"], ["midnight", "Midnight Blue"], ["ocean", "Deep Ocean"], ["rose", "Rose Quartz"], ["amoled", "AMOLED Black"], ["cyberpunk", "Cyberpunk"], ["blood", "Blood Moon"], ["matrix", "Matrix Green"], ["arctic", "Arctic Ice"], ["sunset", "Sunset Glow"], ["purple", "Purple Haze"], ["sakura", "Sakura Pink"], ["classic", "Discord Classic"], ["forest", "Forest Green"]], LS.get("theme") || "dark");
   th.onchange = () => { LS.set("theme", th.value); LS.set("accent", ""); accent.value = themeDefaults[th.value] || themeDefaults.dark; applyLook(); };
@@ -1344,6 +1450,9 @@ function editProfile() {
   const compactLabel = h("label", { style:"display:flex;align-items:center;margin:10px 0;cursor:pointer" }, compact, h("span", { textContent:"Компактный интерфейс · больше сообщений на экране" }));
   const motion = h("input", { type:"checkbox", checked:LS.get("reduceMotion") === "1", style:"width:18px;height:18px;vertical-align:middle;margin-right:8px" });
   motion.onchange = () => { LS.set("reduceMotion", motion.checked ? "1" : "0"); applyLook(); };
+  const embeds = h("input", { type:"checkbox", checked:LS.get("embeds") !== "0", style:"width:18px;height:18px;vertical-align:middle;margin-right:8px" });
+  embeds.onchange = () => { LS.set("embeds", embeds.checked ? "1" : "0"); redraw && redraw(); };
+  const embedsLabel = h("label", { style:"display:flex;align-items:center;margin:10px 0;cursor:pointer" }, embeds, h("span", { textContent:"Показывать превью YouTube-ссылок" }));
   const motionLabel = h("label", { style:"display:flex;align-items:center;margin:10px 0;cursor:pointer" }, motion, h("span", { textContent:"Уменьшить анимации" }));
   const nt = mkBtn("🔔 Разрешить уведомления в браузере", () => "Notification" in window ? Notification.requestPermission().then(r => toast(r === "granted" ? "Разрешение на уведомления выдано" : "Уведомления запрещены браузером")) : toast("Браузер не поддерживает уведомления"));
   const notificationMode = sel([["all", "Все новые сообщения"], ["mentions", "Только упоминания меня"], ["off", "Отключить уведомления"]], LS.get("notificationMode") || "all");
@@ -1351,7 +1460,7 @@ function editProfile() {
   const save = mkBtn("Сохранить", async () => {
     const name = nm.value.trim(); if (!name) return toast("Введите ник");
     try {
-      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), statusText: statusText.value.trim(), gameStatus: gameStatus.value.trim(), banner: banner || "", avatar: av || "", status: st.value };
+      const data = { name, nameLower: name.toLowerCase(), bio: bio.value.trim(), statusText: statusText.value.trim(), gameStatus: gameStatus.value.trim(), activityType: actType.value, banner: banner || "", avatar: av || "", status: st.value };
       await setDoc(doc(db, "users", user.uid), data, { merge: true }); ucache[user.uid] = { ...ucache[user.uid], ...data };
       try { await updateProfile(auth.currentUser, { displayName: name }); } catch {} user = auth.currentUser;
       servers.forEach(x => updateDoc(doc(db, "servers", x.id), { ["names." + user.uid]: name }).catch(() => {}));
@@ -1360,7 +1469,7 @@ function editProfile() {
     } catch (e) { toast("Ошибка: " + (e.code || e.message)); }
   }, "btn full");
   const shop = mkBtn("🛍 Магазин оформления", openCosmeticShop);
-  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, bp, bprev, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "ТЕКСТОВЫЙ СТАТУС" }), statusText, h("label", { textContent: "ВО ЧТО ИГРАЮ (ВРУЧНУЮ)" }), gameStatus, h("label", { textContent: "СТАТУС В СЕТИ" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "АКЦЕНТНЫЙ ЦВЕТ" }), accent, swatches, resetAccent, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, compactLabel, motionLabel, h("label", { textContent: "УВЕДОМЛЕНИЯ" }), notificationMode, nt, shop, save);
+  modal(h("h1", { textContent: "Мой профиль", style: "text-align:center;font-size:22px" }), prev, pick, clr, bp, bprev, h("label", { textContent: "НИКНЕЙМ" }), nm, h("label", { textContent: "О СЕБЕ" }), bio, h("label", { textContent: "ТЕКСТОВЫЙ СТАТУС" }), statusText, h("label", { textContent: "АКТИВНОСТЬ" }), actType, gameStatus, h("label", { textContent: "СТАТУС В СЕТИ" }), st, h("label", { textContent: "ТЕМА" }), th, h("label", { textContent: "АКЦЕНТНЫЙ ЦВЕТ" }), accent, swatches, resetAccent, h("label", { textContent: "РАЗМЕР ШРИФТА" }), fs, compactLabel, motionLabel, embedsLabel, h("label", { textContent: "УВЕДОМЛЕНИЯ" }), notificationMode, h("label", { textContent: "ЗВУК НОВОГО СООБЩЕНИЯ" }), sound, nt, shop, save);
 }
 const PAL = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c", "#3498db", "#5865f2", "#9b59b6", "#e91e63", "#95a5a6"];
 function colorPick(init) {
@@ -2007,7 +2116,7 @@ function vrender() {
   noise.onclick = async () => { if (!vc) return; const next = !vc.noiseSuppression; try { const ns = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: next, autoGainControl: true } }); const nt = ns.getAudioTracks()[0], old = vc.stream.getAudioTracks()[0]; for (const p of Object.values(vc.peers)) { const snd = p.pc.getSenders().find(x => x.track?.kind === "audio"); if (snd) await snd.replaceTrack(nt); } if (old) { vc.stream.removeTrack(old); old.stop(); } vc.stream.addTrack(nt); nt.enabled = !vc.ptt; vc.noiseSuppression = next; toast(next ? "Шумоподавление включено" : "Шумоподавление выключено"); vrender(); } catch (e) { toast("Не удалось изменить настройки микрофона: " + (e.message || e.name)); } };
   deaf.onclick = () => { if (!vc) return; vc.deafened = !vc.deafened; Object.values(vc.peers).forEach(p => { if (p.el) p.el.muted = vc.deafened; }); vrender(); };
   share.onclick = shareGroupScreen; out.onclick = leaveVoice;
-  const header = h("b", { textContent: "🔊 Голосовой канал" });
+  const header = h("b", {}, "🔊 " + (allChans.find(c => c.id === v.channelId)?.name || "Голосовой канал") + " · ", h("span", { id: "vtime", textContent: callFmt(Date.now() - v.t) }));
   const devices = h("div", { className: "vdevices" }, h("label", { className: "vsetting", textContent: "Микрофон" }, h("select", { id: "vmicdev", className: "in" })), h("label", { className: "vsetting", textContent: "Вывод звука" }, h("select", { id: "voutdev", className: "in" })));
   const people = h("div", { id: "vpeople" });
   v.parts.forEach(d => {
@@ -2059,6 +2168,7 @@ async function joinVoice(sid, channelId = "__general__") {
     }
   } catch (e) { stream.getTracks().forEach(x => x.stop()); vc = null; return toast("Ошибка: " + e.code); }
   vc.hb = setInterval(() => updateDoc(mine, { hb: Date.now() }).catch(() => {}), 25000);
+  vc.timer = setInterval(() => { const el = gv.querySelector("#vtime"); if (el && vc) el.textContent = callFmt(Date.now() - vc.t); }, 1000);
   vc.unsubs.push(onSnapshot(collection(db, "servers", sid, "voice"), snap => {
     if (!vc || vc.sid !== sid) return; const live = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(vlive).filter(v => (v.channelId || "__general__") === channelId); vc.parts = live; vrender();
     const ids = new Set(live.map(x => x.id)); Object.keys(vc.peers).forEach(u => !ids.has(u) && vclose(u));
@@ -2080,7 +2190,7 @@ async function joinVoice(sid, channelId = "__general__") {
   vrender();
 }
 function leaveVoice() {
-  const v = vc; if (!v) return Promise.resolve(); vc = null; clearInterval(v.hb);
+  const v = vc; if (!v) return Promise.resolve(); vc = null; clearInterval(v.hb); clearInterval(v.timer);
   if (v.shareStream) v.shareStream.getTracks().forEach(t => t.stop());
   if (v.msg && !v.parts.some(d => d.id !== user.uid && vlive(d))) updateDoc(v.msg, { text: "🔊 Голосовой звонок завершён · " + callFmt(Date.now() - v.t) }).catch(() => {}); v.unsubs.forEach(f => f());
   Object.values(v.peers).forEach(p => { try { p.pc.close(); } catch {} if (p.el) { p.el.srcObject = null; p.el.remove(); } if (p.video) p.video.remove(); if (p.audioCtx) p.audioCtx.close().catch(() => {}); if (p.raf) cancelAnimationFrame(p.raf); }); v.stream.getTracks().forEach(x => x.stop());
