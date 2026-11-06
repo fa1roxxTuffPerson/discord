@@ -330,6 +330,15 @@ html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{an
 .theme-swatches{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}.theme-swatches button{width:28px;height:28px;border-radius:50%;border:2px solid #ffffff55;cursor:pointer}.theme-swatches button:focus-visible{outline:2px solid var(--txt);outline-offset:2px}
 #savedMsgs{font-size:17px}
 @media(max-width:480px){.acts{max-width:calc(100vw - 70px);flex-wrap:wrap;right:6px}.acts button{padding:5px 7px}}
+/* Date separators, spoilers, quotes and jump-to-latest */
+.dsep{display:flex;align-items:center;gap:8px;margin:18px 16px 4px;color:var(--mut);font-size:12px;font-weight:600}
+.dsep::before,.dsep::after{content:"";flex:1;height:1px;background:var(--hover)}
+.spoiler{background:#1e1f22;color:transparent;border-radius:3px;padding:0 2px;cursor:pointer;transition:background .15s,color .15s}
+.spoiler *{visibility:hidden}.spoiler.open{background:#ffffff14;color:inherit;cursor:text}.spoiler.open *{visibility:visible}
+.t blockquote{border-left:4px solid var(--mut);padding-left:10px;margin:2px 0;color:var(--txt)}
+#dlg{z-index:70}
+#cname .topic{color:var(--mut);font-weight:400;font-size:13px;margin-left:10px;padding-left:10px;border-left:1px solid var(--hover)}
+#jumpNew{position:absolute;right:24px;bottom:96px;z-index:5;display:none;border-radius:20px;padding:8px 14px;box-shadow:0 4px 14px #0006;font-size:13px}
 </style>
 </head>
 <body>
@@ -441,7 +450,14 @@ $("gbtn").onclick = async () => {
   try { await signInWithPopup(auth, new GoogleAuthProvider()); }
   catch (e) { if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") $("aerr").textContent = authErrs[e.code] || e.message; }
 };
-$("out").onclick = () => signOut(auth);
+$("out").onclick = async () => {
+  if (!confirm("Выйти из аккаунта?")) return;
+  // Leave voice and end calls while still signed in, otherwise presence docs stay behind as "ghost" participants.
+  saveCurrentDraft();
+  try { await leaveVoice(); } catch {}
+  if (pc) endCall(true);
+  closeM(); signOut(auth);
+};
 onAuthStateChanged(auth, u => {
   user = u;
   if (u) { $("auth").style.display = "none"; $("app").style.display = "grid"; boot(); }
@@ -479,6 +495,7 @@ function renderRail() {
   r.append(discover, ranks, add, join);
 }
 function selectServer(id) {
+  saveCurrentDraft();
   unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); curCh = null; chans = []; home = false; mpath = null;
   unsub.perm && unsub.perm(); unsub.perm = null;
   cur = servers.find(s => s.id === id) || null; currentServerPerms = [];
@@ -492,13 +509,14 @@ function selectServer(id) {
   watchVoice(cur?.id);
   renderRail(); renderMembers(); renderChans(); $("menu").hidden = !cur;
   $("sname").textContent = cur ? cur.name : "Выберите сервер";
-  $("cname").textContent = "# —"; $("inp").disabled = true;
+  $("cname").textContent = "# —"; $("cname").title = ""; $("inp").disabled = true; replyTo = editing = null; bar(); updateJumpButton();
   $("msgs").replaceChildren(h("div", { className: "empty", textContent: cur ? "Выберите канал" : "Создайте сервер или присоединитесь по коду приглашения." }));
   if (!cur) return;
   unsub.ch = onSnapshot(query(collection(db, "servers", cur.id, "channels"), orderBy("createdAt")), snap => {
     allChans = snap.docs.map(d => ({ id: d.id, ...d.data() })); chans = allChans.filter(vis);
     if (!curCh || !chans.find(c => c.id === curCh)) { const firstText = chans.find(c => c.type !== "voice"); if (firstText) selectChannel(firstText.id); }
     renderChans(); paintTyping();
+    if (curCh && mpath?.[3] === curCh) paintTopic(chans.find(c => c.id === curCh));
   });
 }
 function renderChans() {
@@ -578,17 +596,30 @@ const setEdit = m => { replyTo = null; editing = m; $("inp").value = m.text; bar
 const react = (path, m, e) => updateDoc(doc(db, ...path, m.id), new FieldPath("rx", e), (m.rx?.[e] || []).includes(user.uid) ? arrayRemove(user.uid) : arrayUnion(user.uid)).catch(x => toast("Ошибка: " + x.code));
 function refreshDots() { renderRail(); home ? renderHome() : renderChans(); }
 const hm = ts => ts ? ts.toDate().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }) : "";
+const dayLabel = ds => { const d = new Date(ds), today = new Date(), y = new Date(); y.setDate(today.getDate() - 1); if (ds === today.toDateString()) return "Сегодня"; if (ds === y.toDateString()) return "Вчера"; return d.toLocaleDateString("ru", { day: "numeric", month: "long", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" }); };
+let deleteSkipConfirm = false;
+addEventListener("keydown", e => { deleteSkipConfirm = e.shiftKey; }); addEventListener("keyup", e => { deleteSkipConfirm = e.shiftKey; }); addEventListener("blur", () => { deleteSkipConfirm = false; });
+// "Jump to latest" button appears when the user scrolls up in a chat.
+const jumpBtn = h("button", { id: "jumpNew", className: "btn", textContent: "⬇ К новым сообщениям", type: "button" });
+queueMicrotask(() => { $("main").append(jumpBtn); $("msgs").addEventListener("scroll", updateJumpButton, { passive: true }); });
+jumpBtn.onclick = () => { const b = $("msgs"); b.scrollTop = b.scrollHeight; updateJumpButton(); };
+function updateJumpButton() { const b = $("msgs"); jumpBtn.style.display = mpath && b.scrollHeight - b.scrollTop - b.clientHeight > 400 ? "block" : "none"; }
 const fmt = ts => { if (!ts) return "отправка…"; const d = ts.toDate(); return d.toDateString() === new Date().toDateString() ? "Сегодня в " + hm(ts) : d.toLocaleDateString("ru") + " " + hm(ts); };
 function selectChannel(id) {
   curCh = id; markSeen(id); const ch = chans.find(c => c.id === id); renderChans(); $("app").classList.remove("nav");
   openChat(["servers", cur.id, "channels", id, "messages"], "# " + (ch?.name || ""), "Написать в #" + (ch?.name || ""), cur.owner === user.uid, "Это начало канала. Напишите первое сообщение!");
+  paintTopic(ch);
+}
+function paintTopic(ch) {
+  const el = $("cname"); el.querySelector(".topic")?.remove(); el.title = ch?.topic || "";
+  if (ch?.topic) el.append(h("span", { className: "topic", textContent: ch.topic }));
 }
 function rich(text, names) {
   let mine = false;
   const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const nl = Object.keys(names).filter(Boolean).sort((a, b) => b.length - a.length).map(esc);
   const mre = "@(?:everyone" + (nl.length ? "|" + nl.join("|") : "") + ")(?![\\p{L}\\p{N}_])";
-  const re = new RegExp("(`[^`\\n]+`)|(\\*\\*[^\\n]+?\\*\\*)|(~~[^\\n]+?~~)|(\\*[^*\\n]+?\\*)|(https?://[^\\s<]+)|(" + mre + ")", "giu");
+  const re = new RegExp("(`[^`\\n]+`)|(\\*\\*[^\\n]+?\\*\\*)|(~~[^\\n]+?~~)|(\\*[^*\\n]+?\\*)|(https?://[^\\s<]+)|(" + mre + ")|(\\|\\|[^\\n]+?\\|\\|)|(__[^\\n]+?__)", "giu");
   const inline = (str, parent) => {
     let last = 0, m; re.lastIndex = 0;
     const found = []; while ((m = re.exec(str))) found.push({ i: m.index, t: m[0], g: m.slice(1).findIndex(Boolean) });
@@ -601,6 +632,8 @@ function rich(text, names) {
       else if (f.g === 2) { const e = h("s"); inline(t.slice(2, -2), e); parent.append(e); }
       else if (f.g === 3) { const e = h("i"); inline(t.slice(1, -1), e); parent.append(e); }
       else if (f.g === 4) { const mm = t.match(/^(.*?)([.,!?;:)]*)$/); parent.append(h("a", { href: mm[1], target: "_blank", rel: "noopener noreferrer", textContent: mm[1] })); if (mm[2]) parent.append(mm[2]); }
+      else if (f.g === 6) { const e = h("span", { className: "spoiler", title: "Спойлер — нажмите, чтобы показать" }); inline(t.slice(2, -2), e); e.onclick = ev => { if (!e.classList.contains("open")) { ev.stopPropagation(); e.classList.add("open"); } }; parent.append(e); }
+      else if (f.g === 7) { const e = h("u"); inline(t.slice(2, -2), e); parent.append(e); }
       else { const k = t.slice(1).toLowerCase(), uid = names[k], every = k === "everyone"; if (every || uid === user.uid) mine = true; const sp = h("span", { className: "mn", textContent: t }); if (uid) sp.onclick = e => { e.stopPropagation(); showProfile(uid, t.slice(1)); }; parent.append(sp); }
       last = f.i + t.length;
     });
@@ -609,7 +642,13 @@ function rich(text, names) {
   const frag = document.createDocumentFragment();
   text.split(/(```[\s\S]*?```)/g).forEach(part => {
     if (part.length >= 6 && part.startsWith("```") && part.endsWith("```")) frag.append(h("pre", {}, h("code", { textContent: part.slice(3, -3).replace(/^\n/, "") })));
-    else inline(part, frag);
+    else {
+      // Lines starting with "> " render as block quotes; everything else keeps its original newlines.
+      let buf = [];
+      const flush = () => { if (buf.length) { inline(buf.join("\n"), frag); buf = []; } };
+      part.split("\n").forEach(ln => { if (/^> ./.test(ln)) { flush(); const q = h("blockquote"); inline(ln.slice(2), q); frag.append(q); } else buf.push(ln); });
+      flush();
+    }
   });
   return { frag, mine };
 }
@@ -667,9 +706,8 @@ function showSavedMessages() {
 }
 $("savedMsgs").onclick = showSavedMessages;
 window.addEventListener("keydown", e => {
+  // Ctrl+/ and Escape are handled by the global shortcut listener above; handling them here too fired them twice.
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "s") { e.preventDefault(); showSavedMessages(); }
-  else if ((e.ctrlKey || e.metaKey) && e.key === "/") { e.preventDefault(); if (user && mpath) $("inp").focus(); else toast("Сначала открой чат"); }
-  else if (e.key === "Escape" && $("pnl").classList.contains("show")) closeM();
 });
 
 const draftKey = path => "fa1roxx:draft:" + (user?.uid || "guest") + ":" + path.join("/");
@@ -687,9 +725,11 @@ function openChat(path, title, ph, admin, emptyText) {
     const displayList = list.filter(m => !m.threadRoot);
     if (!displayList.length) box.append(h("div", { className: "empty", textContent: emptyText }));
     const mnames = {}; { const src = path[0] === "servers" ? (cur?.names || {}) : (friends.find(x => x.id === path[1])?.names || {}); Object.entries(src).forEach(([u, n]) => { const k = String(nameOf(u, n)).toLowerCase(); if (k) mnames[k] = u; }); }
-    let prev = null;
+    let prev = null, prevDay = "";
     displayList.forEach(m => {
       let mine = false;
+      const day = m.createdAt?.toDate ? m.createdAt.toDate().toDateString() : new Date().toDateString();
+      if (day !== prevDay) { box.append(h("div", { className: "dsep" }, h("span", { textContent: dayLabel(day) }))); prevDay = day; prev = null; }
       if (m.sys) { box.append(h("div", { className: "sysm", textContent: m.text + (m.createdAt ? " · " + hm(m.createdAt) : "") })); prev = null; return; }
       const nm = nameOf(m.uid, m.name), srv = path[0] === "servers", secs = m.createdAt?.seconds || Date.now() / 1000;
       const first = !prev || prev.uid !== m.uid || secs - (prev.createdAt?.seconds || secs) > 420;
@@ -702,7 +742,7 @@ function openChat(path, title, ph, admin, emptyText) {
       if (m.sticker) body.append(h("div", { className: "sticker", role: "img", "aria-label": "Стикер", textContent: m.sticker }));
       if (m.img) { const i = h("img", { src: m.img, className: "pic", alt: "Фото", loading: "lazy", decoding: "async" }); i.onclick = () => { $("lb").src = m.img; $("lbw").classList.add("show"); }; body.append(i); }
       if (m.aud) body.append(h("audio", { src: m.aud, controls: true, preload: "metadata" }));
-      if (m.file?.data) { const a = h("a", { href: m.file.data, download: m.file.name || "attachment", textContent: "📎 " + (m.file.name || "Файл") + " · " + (m.file.size / 1024).toFixed(1) + " КБ", style: "display:inline-block;margin-top:5px;color:#00a8fc;overflow-wrap:anywhere" }); body.append(a); }
+      if (m.file?.data) { const a = h("a", { href: m.file.data, download: m.file.name || "attachment", textContent: "📎 " + (m.file.name || "Файл") + " · " + ((m.file.size || 0) / 1024).toFixed(1) + " КБ", style: "display:inline-block;margin-top:5px;color:#00a8fc;overflow-wrap:anywhere" }); body.append(a); }
       if (m.vid) {
         if (vcache[m.id]) body.append(h("video", { src: vcache[m.id], controls: true, playsInline: true, className: "pic", style: "cursor:default;max-height:360px;background:#000" }));
         else { const b = h("button", { className: "btn g", textContent: "▶ Видео, " + (m.vid.size / 1048576).toFixed(1) + " МБ. Нажмите, чтобы загрузить", style: "margin-top:4px;text-align:left" }); b.onclick = () => loadVideo(path, m, b); body.append(b); }
@@ -723,11 +763,12 @@ function openChat(path, title, ph, admin, emptyText) {
       if (srv && m.uid !== user.uid) act("🚩", () => reportContent({ targetUid: m.uid, targetName: nm, messageId: m.id, channelId: path[3], kind: "message", messageText: (m.text || "Вложение").slice(0,300) }), "Пожаловаться на сообщение");
       if (m.uid === user.uid && m.text) act("✏", () => setEdit(m), "Изменить");
       if (!srv || perm(user.uid, "mod") || canDelAll) act(m.pin ? "📍" : "📌", () => updateDoc(doc(db, ...path, m.id), { pin: !m.pin }).catch(x => toast("Ошибка: " + x.code)), m.pin ? "Открепить" : "Закрепить");
-      if (m.uid === user.uid || canDelAll || (srv && perm(user.uid, "messages"))) act("🗑", async () => { if (m.vid) for (let i = 0; i < m.vid.n; i++) await deleteDoc(doc(db, ...path, m.id, "chunks", "" + i)).catch(() => {}); deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); }, "Удалить");
+      if (m.uid === user.uid || canDelAll || (srv && perm(user.uid, "messages"))) act("🗑", async () => { if (!deleteSkipConfirm && !confirm("Удалить сообщение?")) return; if (m.vid) for (let i = 0; i < m.vid.n; i++) await deleteDoc(doc(db, ...path, m.id, "chunks", "" + i)).catch(() => {}); deleteDoc(doc(db, ...path, m.id)).catch(() => toast("Не удалось удалить")); }, "Удалить");
       row.append(acts); row.onclick = e => { if (!e.target.closest("button,img,audio,.who,.av")) row.classList.toggle("sel"); };
       box.append(row); prev = m;
     });
     if (atEnd) box.scrollTop = box.scrollHeight;
+    updateJumpButton();
   };
   redraw = draw;
   const subscribe = () => {
@@ -774,18 +815,19 @@ async function send(data) {
     sendTimes.push(now);
   }
   if (mpath[0] === "servers" && cur?.to?.[user.uid] > Date.now()) { const t = cur.to[user.uid]; toast(t > Date.now() + 2e11 ? "Вам запретили писать на этом сервере" : "Таймаут до " + new Date(t).toLocaleTimeString("ru")); return false; }
+  const path = mpath;
   try {
     const { id: mid, ...rest } = data, body = { ...rest, ...(replyTo ? { re: replyTo } : {}), uid: user.uid, name: myName(), createdAt: serverTimestamp() };
-    if (mid) await setDoc(doc(db, ...mpath, mid), body); else await addDoc(collection(db, ...mpath), body);
+    if (mid) await setDoc(doc(db, ...path, mid), body); else await addDoc(collection(db, ...path), body);
     if (!mid && !data.sys && (data.text || data.img || data.vid || data.file || data.aud || data.sticker)) awardMessageXp();
-    replyTo = null; bar();
+    if (mpath === path) { replyTo = null; bar(); }
     const l = { last: serverTimestamp(), lastBy: user.uid };
-    if (mpath[0] === "servers") { updateDoc(doc(db, "servers", mpath[1], "channels", mpath[3]), l).catch(() => {}); updateDoc(doc(db, "servers", mpath[1]), { ...l, lastCh: mpath[3] }).catch(() => {}); }
-    else updateDoc(doc(db, "friends", mpath[1]), l).catch(() => {});
+    if (path[0] === "servers") { updateDoc(doc(db, "servers", path[1], "channels", path[3]), l).catch(() => {}); updateDoc(doc(db, "servers", path[1]), { ...l, lastCh: path[3] }).catch(() => {}); }
+    else updateDoc(doc(db, "friends", path[1]), l).catch(() => {});
     return true;
   }
   catch (er) {
-    console.error("Fa1roxx send failed", { code: er?.code, message: er?.message, path: mpath });
+    console.error("Fa1roxx send failed", { code: er?.code, message: er?.message, path });
     const code = er?.code || "unknown";
     const friendly = code === "permission-denied"
       ? "Firebase запретил отправку (permission-denied). Проверь firestore.rules: опубликованы ли правила именно из этого проекта?"
@@ -831,20 +873,52 @@ $("inp").addEventListener("keydown", e => {
 }, true);
 $("inp").addEventListener("blur", () => setTimeout(acHide, 150));
 $("inp").addEventListener("input", () => { if (mpath && user) LS.set(draftKey(mpath), $("inp").value); });
+$("inp").addEventListener("keydown", e => {
+  if (e.key === "Escape" && (replyTo || editing)) { e.preventDefault(); if (editing) $("inp").value = ""; replyTo = editing = null; bar(); return; }
+  // Discord-style: ArrowUp in an empty input edits your latest text message.
+  if (e.key === "ArrowUp" && !$("inp").value && mpath && !editing) {
+    const last = [...curList].reverse().find(m => m.uid === user.uid && m.text && !m.sys && !m.poll && !m.threadRoot);
+    if (last) { e.preventDefault(); setEdit(last); }
+  }
+});
+const randomPick = a => a[Math.floor(Math.random() * a.length)];
+const EIGHT_BALL = ["Бесспорно", "Предрешено", "Никаких сомнений", "Определённо да", "Можешь быть уверен в этом", "Мне кажется — да", "Вероятнее всего", "Хорошие перспективы", "Знаки говорят — да", "Да", "Пока не ясно, попробуй снова", "Спроси позже", "Лучше не рассказывать", "Сейчас нельзя предсказать", "Сконцентрируйся и спроси опять", "Даже не думай", "Мой ответ — нет", "По моим данным — нет", "Перспективы не очень хорошие", "Весьма сомнительно"];
+const HELP_TEXT = "Команды: /roll [N] · /coin · /8ball вопрос · /choose a | b | c · /shrug · /tableflip · /unflip · /lenny · /spoiler текст · /me текст · /poll Вопрос | вариант 1 | вариант 2 · /clear · /help\n" +
+  "Разметка: **жирный** · *курсив* · __подчёркнутый__ · ~~зачёркнутый~~ · ||спойлер|| · `код` · > цитата\n" +
+  "Клавиши: Ctrl+K — команды · Ctrl+/ — поле ввода · ↑ — изменить последнее · Esc — отменить ответ · Shift+🗑 — удалить без вопроса";
+function showHelp() {
+  const rows = HELP_TEXT.split("\n").map(line => { const [head, ...rest] = line.split(": "); return h("div", { style: "margin-top:12px" }, h("div", { className: "profile-section-title", textContent: head.toUpperCase() }), h("div", { textContent: rest.join(": ").split(" · ").join("\n"), style: "white-space:pre-line;line-height:1.7;overflow-wrap:anywhere" })); });
+  modal(h("h1", { textContent: "❓ Справка", style: "font-size:22px;text-align:center" }), ...rows);
+}
 $("inp").addEventListener("keydown", async e => {
   if (e.key !== "Enter" || e.shiftKey) return;
   const text = $("inp").value.trim(); if (!text) return;
-  if (editing) { const m = editing; editing = null; bar(); $("inp").value = ""; await updateDoc(doc(db, ...mpath, m.id), { text, edited: true }).catch(x => toast("Не удалось изменить: " + x.code)); return; }
+  if (editing) {
+    const m = editing, path = mpath; editing = null; bar(); $("inp").value = "";
+    if (text === m.text) return;
+    try { await updateDoc(doc(db, ...path, m.id), { text, edited: true }); }
+    catch (x) { toast("Не удалось изменить: " + x.code); if (mpath === path && !$("inp").value) { editing = m; $("inp").value = text; bar(); } }
+    return;
+  }
   let data = { text };
   if (text[0] === "/") {
-    const [cmd, ...r] = text.slice(1).split(/\s+/), arg = r.join(" ");
+    const [rawCmd, ...r] = text.slice(1).split(/\s+/), cmd = rawCmd.toLowerCase(), arg = r.join(" ");
     if (cmd === "roll") { const n = Math.max(2, Math.min(1e6, parseInt(arg) || 100)); data = { text: `🎲 ${myName()} бросает кубик (1–${n}): **${1 + Math.floor(Math.random() * n)}**` }; }
+    else if (cmd === "coin" || cmd === "flip") data = { text: `🪙 ${myName()} подбрасывает монетку: **${Math.random() < .5 ? "Орёл" : "Решка"}**` };
+    else if (cmd === "8ball") { if (!arg) return toast("Формат: /8ball вопрос"); data = { text: `🎱 ${arg}\n> ${randomPick(EIGHT_BALL)}` }; }
+    else if (cmd === "choose") { const o = arg.split("|").map(x => x.trim()).filter(Boolean); if (o.length < 2) return toast("Формат: /choose вариант 1 | вариант 2"); data = { text: `🤔 Выбираю из ${o.length}: **${randomPick(o)}**` }; }
     else if (cmd === "shrug") data = { text: (arg + " ¯\\_(ツ)_/¯").trim() };
+    else if (cmd === "tableflip") data = { text: (arg + " (╯°□°)╯︵ ┻━┻").trim() };
+    else if (cmd === "unflip") data = { text: (arg + " ┬─┬ノ( º _ ºノ)").trim() };
+    else if (cmd === "lenny") data = { text: (arg + " ( ͡° ͜ʖ ͡°)").trim() };
+    else if (cmd === "spoiler") { if (!arg) return toast("Формат: /spoiler текст"); data = { text: "||" + arg + "||" }; }
     else if (cmd === "me") data = { text: `*${myName()} ${arg}*` };
-    else if (cmd === "poll") { const p = arg.split("|").map(x => x.trim()).filter(Boolean); if (p.length < 3 || p.length > 11) return toast("Формат: /poll Вопрос | вариант 1 | вариант 2"); data = { text: "📊 " + p[0], poll: p.slice(1) }; }
-    else if (cmd === "help") { $("inp").value = ""; return toast("Команды: /roll [N] · /shrug · /me текст · /poll Вопрос | вариант 1 | вариант 2 · /help. Ctrl+/ — поле сообщения, Ctrl+Shift+S — избранное."); }
+    else if (cmd === "poll") { const p = arg.split("|").map(x => x.trim()).filter(Boolean); if (p.length < 3 || p.length > 11) return toast("Формат: /poll Вопрос | вариант 1 | вариант 2 (до 10 вариантов)"); data = { text: "📊 " + p[0], poll: p.slice(1) }; }
+    else if (cmd === "clear") { $("inp").value = ""; if (mpath && user) LS.set(draftKey(mpath), ""); replyTo = null; bar(); return toast("Поле ввода очищено"); }
+    else if (cmd === "help") { $("inp").value = ""; return showHelp(); }
   }
-  $("inp").value = ""; if (mpath && user) LS.set(draftKey(mpath), ""); if (!(await send(data))) { $("inp").value = text; if (mpath && user) LS.set(draftKey(mpath), text); }
+  const sentFrom = mpath;
+  $("inp").value = ""; if (mpath && user) LS.set(draftKey(mpath), ""); if (!(await send(data))) { if (user && sentFrom) LS.set(draftKey(sentFrom), text); if (mpath === sentFrom) $("inp").value = text; }
 });
 function shrink(file) {
   return new Promise((res, rej) => {
@@ -854,9 +928,12 @@ function shrink(file) {
       c.width = img.width * k | 0; c.height = img.height * k | 0; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
       let q = .75, d = c.toDataURL("image/jpeg", q);
       while (d.length > 450000 && q > .3) { q -= .1; d = c.toDataURL("image/jpeg", q); }
-      d.length > 900000 ? rej() : res(d);
+      d.length > 900000 ? rej(new Error("изображение слишком большое")) : res(d);
     };
-    img.onerror = rej; img.src = URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("не удалось открыть изображение")); };
+    img.addEventListener("load", () => URL.revokeObjectURL(url));
+    img.src = url;
   });
 }
 $("vbtn").onclick = () => mpath ? $("vfile").click() : toast("Сначала выберите канал или друга");
@@ -964,7 +1041,7 @@ async function openOwnerAdminPanel() {
   if (!user || user.uid !== OWNER_UID) return toast("Нет доступа");
   const title = h("h1", { textContent: "🛡 Owner Admin Panel", style: "font-size:22px" });
   const note = h("p", { className: "ts", textContent: "Действия проверяются сервером. Блокировки и ачивки применяются после развёртывания Firebase Functions и обновления Rules." });
-  const target = h("input", { className: "in", placeholder: "Firebase UID пользователя", maxlength: 128, style: "width:100%;margin:8px 0" });
+  const target = h("input", { className: "in", placeholder: "Firebase UID пользователя", maxLength: 128, style: "width:100%;margin:8px 0" });
   const lookup = mkBtn("Найти пользователя", null, "btn");
   const result = h("div", { style: "margin-top:12px" });
   const serverSelect = h("select", { className: "in", style: "width:100%;margin:8px 0" });
@@ -1068,7 +1145,24 @@ function openNotificationCenter() {
     b.append(h("div", { textContent:(item.read?"":"🔵 ") + (item.isMention?"🔔 Упоминание · ":"") + item.name, style:"font-weight:700" }), h("div", { textContent:item.title, style:"font-size:12px;color:var(--mut);margin:2px 0" }), h("div", { textContent:item.body, style:"overflow-wrap:anywhere" }), h("div", { textContent:new Date(item.at).toLocaleString(), style:"font-size:11px;color:var(--mut);margin-top:4px" }));
     b.onclick = async () => {
       const next = readLocalInbox().map(x => x.id === item.id ? {...x,read:true} : x); LS.set(localInboxKey(), JSON.stringify(next)); closeM();
-      try { const path = item.path; if (path[0] === "servers") { await selectServer(path[1]); const ch = await getDoc(doc(db,"servers",path[1],"channels",path[3])); openChat(path, "# " + (ch.exists()?ch.data().name:item.title), "Написать сообщение", false, "Пока нет сообщений"); } else { openChat(path, item.title, "Написать сообщение", false, "Пока нет сообщений"); } } catch { toast("Не удалось открыть чат"); }
+      try {
+        const path = item.path;
+        if (path[0] === "servers") {
+          if (!servers.some(s => s.id === path[1])) return toast("Вы больше не участник этого сервера");
+          selectServer(path[1]);
+          // Mark the target channel as current so the channel listener does not jump to the first channel.
+          curCh = path[3];
+          const ch = await getDoc(doc(db, "servers", path[1], "channels", path[3]));
+          if (!ch.exists()) { curCh = null; return toast("Канал удалён"); }
+          const name = ch.data().name || "";
+          openChat(path, "# " + name, "Написать в #" + name, cur?.owner === user.uid, "Это начало канала. Напишите первое сообщение!");
+          paintTopic(ch.data()); renderChans();
+        } else {
+          if (!friends.some(f => f.id === path[1])) return toast("Чат больше недоступен");
+          goHome();
+          openChat(path, item.title, "Написать сообщение", false, "Пока нет сообщений"); renderHome();
+        }
+      } catch { toast("Не удалось открыть чат"); }
     };
     list.append(b);
   });
@@ -1095,7 +1189,11 @@ function openCommandPalette() {
     ["🔗 Присоединиться к серверу", "сервер join приглашение", joinServer],
     ["⌕ Поиск каналов и друзей", "поиск каналы друзья search", () => { closeM(); $("sideSearch").focus(); $("sideSearch").select(); }],
     ["💬 Перейти к сообщению", "чат сообщение input", () => { closeM(); if (!$ ("inp").disabled) $("inp").focus(); else toast("Сначала выберите канал"); }],
-    ["🏠 Главная", "домой главная home", () => { closeM(); renderHome(); }],
+    ["🏠 Главная", "домой главная home друзья", () => { closeM(); goHome(); }],
+    ["🔖 Избранные сообщения", "избранное сохранённые saved bookmarks", showSavedMessages],
+    ["🏆 Таблица лидеров", "рейтинг лидеры xp leaderboard", openLeaderboard],
+    ["🌐 Каталог сообществ", "каталог публичные discover", discoverServers],
+    ["❓ Справка и команды", "помощь help команды разметка markdown", showHelp],
     ["📲 Установить приложение", "pwa install установить приложение", () => { closeM(); installPWA(); }]
   ];
   const draw = () => { const q = search.value.trim().toLowerCase(); list.replaceChildren(); actions.filter(a => !q || (a[0]+" "+a[1]).toLowerCase().includes(q)).forEach(a => { const b=mkBtn(a[0],()=>{closeM();a[2]();}); b.style.textAlign="left"; b.style.margin="0"; list.append(b); }); if (!list.children.length) list.append(h("p",{className:"empty",textContent:"Команды не найдены"})); };
@@ -1424,7 +1522,12 @@ function serverPanel() {
     n.push(mkBtn("🖼 Значок сервера", () => { const f = h("input", { type: "file", accept: "image/*", style: "position:fixed;left:-9999px;opacity:0" }); document.body.append(f); f.onchange = async () => { const file = f.files[0]; f.remove(); if (!file) return; try { setIcon(await square(file)); } catch { toast("Не удалось обработать фото"); } }; f.click(); }));
     if (cur.icon) n.push(mkBtn("Убрать значок", () => setIcon("")));
   }
-  if (cur.owner !== me) { } else n.push(mkBtn("🗑 Удалить сервер", () => confirm("Удалить сервер навсегда?") && deleteDoc(ref).then(closeM), "btn red"));
+  if (cur.owner === me) n.push(mkBtn("🗑 Удалить сервер", async () => {
+    const sid = cur.id, name = cur.name;
+    const typed = await ask("Удалить сервер навсегда?", "Это действие нельзя отменить. Введите название сервера для подтверждения:\n" + name, name);
+    if (typed === null) return; if (typed !== name.trim()) return toast("Название не совпало — сервер не удалён");
+    try { await deleteDoc(doc(db, "publicDirectory", sid)).catch(() => {}); await deleteDoc(ref); closeM(); toast("Сервер удалён"); } catch (e) { toast("Не удалось удалить сервер: " + e.code); }
+  }, "btn red"));
   modal(...n);
 }
 $("menu").onclick = serverPanel;
@@ -1534,8 +1637,22 @@ function channelModal(ch) {
   const rs = cur.roles || [], ref = doc(db, "servers", cur.id, "channels", ch.id);
   const boxes = rs.map(r => { const i = h("input", { type: "checkbox", checked: !!ch.roles?.includes(r.id) }), l = lbl(r.color, i, r.name); l.r = r.id; l.i = i; return l; });
   const save = mkBtn("Сохранить", () => updateDoc(ref, { roles: boxes.filter(b => b.i.checked).map(b => b.r) }).then(() => { toast("Готово"); closeM(); }).catch(e => toast(e.code)), "btn full");
-  const del = mkBtn("Удалить канал", () => allChans.length > 1 ? confirm("Удалить канал «" + ch.name + "»?") && deleteDoc(ref).then(closeM) : toast("Нельзя удалить последний канал"), "btn red");
-  modal(h("h1", { textContent: (ch.type === "voice" ? "🔊 " : "# ") + ch.name, style: "font-size:22px" }), h("p", { textContent: rs.length ? "Отметьте роли, которым открыт канал. Если ничего не отмечено, канал доступен всем." : "Сначала создайте роли.", style: "margin:8px 0 0;font-size:13px" }), ...boxes, save, del);
+  const del = mkBtn("Удалить канал", async () => {
+    // Keep at least one text channel; voice rooms do not count as a place to chat.
+    if (ch.type !== "voice" && allChans.filter(c => c.type !== "voice").length <= 1) return toast("Нельзя удалить последний текстовый канал");
+    if (!confirm("Удалить канал «" + ch.name + "»?")) return;
+    try { await deleteDoc(ref); logIt("удалён канал: " + ch.name); closeM(); toast("Канал удалён"); } catch (e) { toast("Не удалось удалить канал: " + e.code); }
+  }, "btn red");
+  const rename = mkBtn("✏ Переименовать", async () => {
+    const raw = await ask("Переименовать канал", "Новое название канала.", ch.name, ch.name); if (!raw) return;
+    const name = ch.type === "voice" ? raw.slice(0, 40) : raw.toLowerCase().replace(/\s+/g, "-").slice(0, 40);
+    try { await updateDoc(ref, { name }); logIt("канал переименован: " + ch.name + " → " + name); closeM(); toast("Канал переименован"); } catch (e) { toast("Ошибка: " + e.code); }
+  });
+  const topic = ch.type === "voice" ? null : mkBtn("📝 Тема канала", async () => {
+    const t = await ask("Тема канала", "Показывается в шапке канала (до 120 символов). Пусто — убрать тему.", "О чём этот канал", ch.topic || ""); if (t === null) return;
+    try { await updateDoc(ref, { topic: t.slice(0, 120) }); closeM(); toast(t ? "Тема сохранена" : "Тема убрана"); } catch (e) { toast("Ошибка: " + e.code); }
+  });
+  modal(h("h1", { textContent: (ch.type === "voice" ? "🔊 " : "# ") + ch.name, style: "font-size:22px" }), h("p", { textContent: rs.length ? "Отметьте роли, которым открыт канал. Если ничего не отмечено, канал доступен всем." : "Сначала создайте роли.", style: "margin:8px 0 0;font-size:13px" }), ...boxes, save, rename, ...(topic ? [topic] : []), del);
 }
 const msgCard = m => h("div", { style: "margin-top:12px;padding:8px;background:var(--bg1);border-radius:6px" }, h("div", { className: "ts", textContent: nameOf(m.uid, m.name) + " · " + fmt(m.createdAt) }), h("div", { textContent: m.text || (m.sticker ? m.sticker + " Стикер" : m.img ? "📷 Фото / GIF" : m.vid ? "🎬 Видео" : m.aud ? "🎤 Голосовое" : m.file ? "📎 " + m.file.name : m.poll ? "📊 Опрос" : "Вложение"), style: "white-space:pre-wrap;overflow-wrap:anywhere" }));
 $("pins").onclick = async () => {
@@ -1717,23 +1834,26 @@ $("cend").onclick = () => endCall(true);
 $("vcall").onclick = () => startCall(false); $("vvid").onclick = () => startCall(true);
 
 /* ---------- PWA ---------- */
-let ip = null;
-addEventListener("beforeinstallprompt", e => { e.preventDefault(); ip = e; home && renderHome(); });
+// The install prompt is stored once in deferredInstallPrompt (see installPWA); a second copy here made prompt() run twice.
+addEventListener("beforeinstallprompt", () => setTimeout(() => home && renderHome(), 0));
+addEventListener("appinstalled", () => { deferredInstallPrompt = null; if (home) renderHome(); toast("Приложение установлено"); });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
 /* ---------- FRIENDS ---------- */
 const pid = (a, b) => [a, b].sort().join("_");
 const sec = t => h("div", { className: "sec" }, h("span", { textContent: t }));
 function goHome() {
-  unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); cur = curCh = mpath = null; home = true;
+  saveCurrentDraft();
+  unsub.ch && unsub.ch(); unsub.msg && unsub.msg(); unsub.perm && unsub.perm(); unsub.perm = null; currentServerPerms = [];
+  cur = curCh = mpath = null; home = true; replyTo = editing = null; bar(); $("ty").textContent = ""; $("cname").title = "";
   $("menu").hidden = true; $("sname").textContent = "Друзья"; $("cname").textContent = "Друзья"; $("inp").disabled = true; $("inp").placeholder = "Выберите друга";
   $("msgs").replaceChildren(h("div", { className: "empty", textContent: "Выберите друга слева или добавьте нового по имени или ID." }));
-  renderRail(); renderMembers(); renderHome();
+  renderRail(); renderMembers(); renderHome(); updateJumpButton();
 }
 function renderHome() {
   const c = $("chs"); c.replaceChildren();
   const btn = (t, f) => { const b = h("button", { className: "ch", textContent: t }); b.onclick = f; return b; };
-  if (ip) c.append(btn("📲 Установить приложение", () => { ip.prompt(); ip = null; renderHome(); }));
+  if (deferredInstallPrompt) c.append(btn("📲 Установить приложение", () => installPWA().finally(() => home && renderHome())));
   c.append(btn("➕ Добавить друга", addFriend), btn("👥 Создать группу", newGroup), btn("🆔 Скопировать мой ID", async () => { try { await navigator.clipboard.writeText(user.uid); toast("ID скопирован"); } catch { toast("ID: " + user.uid); } }));
   const other = f => f.users.find(u => u !== user.uid), pend = friends.filter(f => f.status === "pending");
   const inc = pend.filter(f => f.from !== user.uid), out = pend.filter(f => f.from === user.uid);
@@ -1752,8 +1872,9 @@ async function addFriend() {
   const v = await ask("Добавить друга", "Введите имя пользователя или его ID.", "Имя или ID"); if (!v) return;
   try {
     let uid = null, name = null;
-    const byId = await getDoc(doc(db, "users", v));
-    if (byId.exists()) { uid = v; name = byId.data().name; }
+    // A "/" in the input would make an invalid document path and throw, so only look up plain IDs.
+    const byId = v.includes("/") ? null : await getDoc(doc(db, "users", v));
+    if (byId?.exists()) { uid = v; name = byId.data().name; }
     else { const q = await getDocs(query(collection(db, "users"), where("nameLower", "==", v.toLowerCase()), limit(1))); if (!q.empty) { uid = q.docs[0].id; name = q.docs[0].data().name; } }
     if (!uid) return toast("Пользователь не найден");
     if (uid === user.uid) return toast("Это вы 🙂");
